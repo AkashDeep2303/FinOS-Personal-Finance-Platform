@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #FFFFFF;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex; justify-content: center; padding: 48px;
+  }
+  #diagram { width: fit-content; min-width: 1100px; }
+</style>
+</head>
+<body>
+<div id="diagram">
+  <pre class="mermaid">
+sequenceDiagram
+    actor U as User
+    participant FE as Vue Frontend
+    participant GW as API Gateway
+    participant EX as Expense Service
+    participant ML as Category Engine
+    participant BD as Budget Service
+    participant AN as Analytics Service
+    participant MQ as RabbitMQ
+    participant DB as SQL Server
+    participant RD as Redis
+    participant NF as Notification Svc
+
+    rect rgb(239, 246, 255)
+        Note over U, NF: Manual Expense Entry
+        U->>FE: Add Expense Form
+        FE->>GW: POST /api/v1/expenses
+        GW->>EX: Create Expense
+        EX->>ML: Auto-Categorize (if no category)
+        ML-->>EX: Suggested Category + Confidence
+        EX->>DB: Insert Expense Record
+        EX->>MQ: Publish ExpenseCreatedEvent
+        EX-->>GW: 201 Created
+        GW-->>FE: Expense Added
+        FE-->>U: Show Success
+    end
+
+    rect rgb(240, 253, 244)
+        Note over U, NF: CSV Import Flow
+        U->>FE: Upload CSV File
+        FE->>GW: POST /api/v1/expenses/import
+        GW->>EX: Process CSV Upload
+        EX->>EX: Validate & Parse CSV
+        EX->>ML: Batch Categorize Transactions
+        ML-->>EX: Categories Assigned
+        EX->>DB: Bulk Insert Expenses
+        EX->>MQ: Publish BatchImportEvent
+        EX-->>GW: 200 OK + Import Summary
+        GW-->>FE: Import Complete
+        FE-->>U: Show Summary
+    end
+
+    rect rgb(255, 247, 237)
+        Note over U, NF: Event-Driven Processing
+        MQ->>BD: Consume ExpenseCreatedEvent
+        BD->>DB: Update Budget Spent Amount
+        BD->>RD: Update Budget Cache
+        alt Budget Threshold Exceeded
+            BD->>NF: Trigger Budget Alert
+            NF-->>U: Push Notification
+        end
+        MQ->>AN: Consume ExpenseCreatedEvent
+        AN->>DB: Update Net Worth Snapshot
+        AN->>RD: Invalidate Dashboard Cache
+    end
+  </pre>
+</div>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#EFF6FF', primaryBorderColor: '#3B82F6',
+      primaryTextColor: '#1E293B', lineColor: '#94A3B8',
+      secondaryColor: '#F0FDF4', tertiaryColor: '#FFF7ED',
+      fontSize: '13px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+    },
+    sequence: { mirrorActors: false, messageAlign: 'center' }
+  });
+</script>
+</body>
+</html>

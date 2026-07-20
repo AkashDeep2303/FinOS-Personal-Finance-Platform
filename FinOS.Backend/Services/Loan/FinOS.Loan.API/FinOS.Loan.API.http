@@ -1,0 +1,6 @@
+@FinOS.Loan.API_HostAddress = http://localhost:5118
+
+GET {{FinOS.Loan.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #FFFFFF;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex; justify-content: center; padding: 48px;
+  }
+  #diagram { width: fit-content; min-width: 1200px; }
+</style>
+</head>
+<body>
+<div id="diagram">
+  <pre class="mermaid">
+sequenceDiagram
+    actor U as User
+    participant FE as Vue Frontend
+    participant GW as API Gateway
+    participant AI as AI Assistant Service
+    participant EX as Expense Service
+    participant LN as Loan Service
+    participant IN as Investment Service
+    participant BD as Budget Service
+    participant AN as Analytics Service
+    participant DB as SQL Server
+    participant RD as Redis
+
+    rect rgb(239, 246, 255)
+        Note over U, RD: AI Query - Can I Afford a New Car?
+        U->>FE: "Can I afford a new car?"
+        FE->>GW: POST /api/v1/ai/ask
+        GW->>AI: Process Question
+        AI->>AI: NLP Intent Recognition
+        AI->>RD: Check Cached Financial Summary
+        alt Cache Miss
+            AI->>AN: Get Financial Summary
+            AN->>DB: Query Net Worth + Income + Expenses
+            AN-->>AI: Financial Data
+        end
+        AI->>EX: Get Monthly Avg Expenses
+        EX-->>AI: Expense Trend Data
+        AI->>LN: Get Active Loans + EMI
+        LN-->>AI: Loan Obligations
+        AI->>BD: Get Budget Utilization
+        BD-->>AI: Budget Status
+        AI->>AI: Calculate Affordability Score
+        Note over AI: DTI Ratio + Savings Capacity + Emergency Fund Status
+        AI->>AI: Generate Recommendation
+        AI-->>GW: Response + Recommendations
+        GW-->>FE: 200 OK + AI Response
+        FE-->>U: Display AI Answer
+    end
+  </pre>
+</div>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#EFF6FF', primaryBorderColor: '#3B82F6',
+      primaryTextColor: '#1E293B', lineColor: '#94A3B8',
+      secondaryColor: '#F0FDF4', tertiaryColor: '#FFF7ED',
+      fontSize: '13px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+    },
+    sequence: { mirrorActors: false, messageAlign: 'center' }
+  });
+</script>
+</body>
+</html>

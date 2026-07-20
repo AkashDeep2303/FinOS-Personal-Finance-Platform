@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <!--
+    FinOS ASP.NET Core web.config Template for IIS
+    
+    INSTRUCTIONS:
+    1. Replace {SERVICE_NAME} with the actual service DLL name (e.g., FinOS.Gateway.API)
+    2. Replace {PORT} with the service's designated port number
+    3. Replace connection string values with your actual database connection
+    4. Replace JWT secret with your actual secret key
+    
+    Place this file in the root of each published service directory.
+  -->
+  <location path="." inheritInInChildApplications="false">
+    <system.webServer>
+      <handlers>
+        <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
+      </handlers>
+      <aspNetCore processPath="dotnet"
+                  arguments="{SERVICE_NAME}.dll"
+                  stdoutLogEnabled="true"
+                  stdoutLogFile=".\logs\stdout"
+                  hostingModel="inprocess">
+        <environmentVariables>
+          <!-- Environment -->
+          <environmentVariable name="ASPNETCORE_ENVIRONMENT" value="Production" />
+          <environmentVariable name="ASPNETCORE_URLS" value="http://*:{PORT}" />
+          
+          <!-- Database Connection String -->
+          <environmentVariable name="ConnectionStrings__DefaultConnection" 
+                               value="Server=localhost\SQLEXPRESS;Database=FinOS_{ServiceDb};Trusted_Connection=True;TrustServerCertificate=True;" />
+          
+          <!-- JWT Authentication -->
+          <environmentVariable name="JwtSettings__Secret" value="YOUR-JWT-SECRET-KEY-HERE-MIN-32-CHARS" />
+          <environmentVariable name="JwtSettings__Issuer" value="FinOS" />
+          <environmentVariable name="JwtSettings__Audience" value="FinOS.Users" />
+          <environmentVariable name="JwtSettings__AccessTokenExpirationMinutes" value="60" />
+          <environmentVariable name="JwtSettings__RefreshTokenExpirationDays" value="7" />
+          
+          <!-- Gateway Configuration (for microservices) -->
+          <environmentVariable name="GatewayUrl" value="http://localhost:6000" />
+          
+          <!-- Service Discovery -->
+          <environmentVariable name="ServiceUrls__Identity" value="http://localhost:5001" />
+          <environmentVariable name="ServiceUrls__CoreFinance" value="http://localhost:5002" />
+          <environmentVariable name="ServiceUrls__Budget" value="http://localhost:5003" />
+          <environmentVariable name="ServiceUrls__Investment" value="http://localhost:5004" />
+          <environmentVariable name="ServiceUrls__Loan" value="http://localhost:5005" />
+          <environmentVariable name="ServiceUrls__Goals" value="http://localhost:5006" />
+          <environmentVariable name="ServiceUrls__Analytics" value="http://localhost:5007" />
+          <environmentVariable name="ServiceUrls__AI" value="http://localhost:5008" />
+          <environmentVariable name="ServiceUrls__Notification" value="http://localhost:5009" />
+          
+          <!-- CORS Origins -->
+          <environmentVariable name="CorsOrigins" value="http://localhost:5173,http://localhost:3000,http://localhost:6000" />
+          
+          <!-- Logging -->
+          <environmentVariable name="Serilog__MinimumLevel__Default" value="Information" />
+          <environmentVariable name="Serilog__WriteTo__0__Name" value="File" />
+          <environmentVariable name="Serilog__WriteTo__0__Args__Path" value=".\logs\finos-.log" />
+          <environmentVariable name="Serilog__WriteTo__0__Args__rollingInterval" value="Day" />
+        </environmentVariables>
+      </aspNetCore>
+      
+      <!-- HTTP Response Headers -->
+      <httpProtocol>
+        <customHeaders>
+          <add name="X-Content-Type-Options" value="nosniff" />
+          <add name="X-Frame-Options" value="SAMEORIGIN" />
+          <add name="X-XSS-Protection" value="1; mode=block" />
+          <add name="Referrer-Policy" value="strict-origin-when-cross-origin" />
+        </customHeaders>
+      </httpProtocol>
+      
+      <!-- Request Limits -->
+      <security>
+        <requestFiltering>
+          <requestLimits maxAllowedContentLength="10485760" />
+        </requestFiltering>
+      </security>
+      
+      <!-- URL Rewrite for SPA (Gateway only) -->
+      <rewrite>
+        <rules>
+          <rule name="SPA Routes" stopProcessing="true">
+            <match url=".*" />
+            <conditions logicalGrouping="MatchAll">
+              <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />
+              <add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" />
+              <add input="{REQUEST_URI}" pattern="^/api" negate="true" />
+            </conditions>
+            <action type="Rewrite" url="/index.html" />
+          </rule>
+        </rules>
+      </rewrite>
+      
+      <!-- Compression -->
+      <urlCompression doStaticCompression="true" doDynamicCompression="true" />
+      <staticContent>
+        <clientCache cacheControlMode="UseMaxAge" cacheControlMaxAge="7.00:00:00" />
+      </staticContent>
+    </system.webServer>
+  </location>
+  
+  <!-- Runtime configuration -->
+  <runtime>
+    <gcServer enabled="true" />
+    <gcConcurrent enabled="true" />
+  </runtime>
+</configuration>

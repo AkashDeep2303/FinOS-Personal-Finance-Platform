@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --text: #111827; --text-sub: #6B7280; --bg: #FFFFFF;
+    --surface: #F9FAFB; --border: #E5E7EB; --connector: #94A3B8;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
+  }
+  #root { width: fit-content; min-width: 1100px; margin: 0 auto; padding: 40px 36px; }
+  .main-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+  .main-subtitle { font-size: 13px; text-align: center; color: var(--text-sub); margin-bottom: 32px; }
+
+  .flow-container { position: relative; }
+  .event-row {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 14px;
+    padding: 12px 18px; border-radius: 10px;
+  }
+  .event-row.producer { background: #EFF6FF; border: 1.5px solid #93C5FD; }
+  .event-row.bus { background: #FFF7ED; border: 1.5px solid #FCD34D; }
+  .event-row.consumer { background: #F0FDF4; border: 1.5px solid #86EFAC; }
+
+  .event-label {
+    font-size: 12px; font-weight: 700; min-width: 80px; padding: 4px 10px;
+    border-radius: 4px; text-align: center;
+  }
+  .event-label.prod-label { background: #DBEAFE; color: #1E40AF; }
+  .event-label.bus-label { background: #FEF3C7; color: #92400E; }
+  .event-label.cons-label { background: #D1FAE5; color: #065F46; }
+
+  .event-content { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; flex: 1; }
+
+  .ev-box {
+    padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 500;
+    background: white; border: 1px solid #D1D5DB; text-align: center;
+    min-width: 120px;
+  }
+  .ev-box.service { border-color: #3B82F6; background: #EFF6FF; }
+  .ev-box.event { border-color: #F59E0B; background: #FFFBEB; font-style: italic; }
+  .ev-box.action { border-color: #10B981; background: #F0FDF4; }
+
+  .arrow-r { color: var(--connector); font-size: 18px; font-weight: 700; }
+
+  .section-header {
+    font-size: 15px; font-weight: 700; margin-top: 24px; margin-bottom: 12px;
+    padding: 8px 16px; background: #F8FAFC; border-radius: 8px; border-left: 4px solid #3B82F6;
+  }
+
+  .legend {
+    display: flex; gap: 24px; justify-content: center; margin-top: 28px;
+    padding: 14px 24px; background: #F9FAFB; border-radius: 8px; border: 1px solid #E5E7EB;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4B5563; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="main-title">Event Flow Between Services</div>
+  <div class="main-subtitle">Asynchronous Event-Driven Communication via RabbitMQ</div>
+
+  <div class="section-header">1. User & Identity Events</div>
+  <div class="flow-container">
+    <div class="event-row producer">
+      <div class="event-label prod-label">Producer</div>
+      <div class="event-content">
+        <div class="ev-box service">Identity Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box event">UserCreatedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Notification Svc</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Send Welcome Email</div>
+      </div>
+    </div>
+    <div class="event-row bus">
+      <div class="event-label bus-label">RabbitMQ</div>
+      <div class="event-content">
+        <div class="ev-box service">Identity Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box event">UserVerifiedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Profile Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Create Default Profile</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">2. Expense Events</div>
+  <div class="flow-container">
+    <div class="event-row producer">
+      <div class="event-label prod-label">Producer</div>
+      <div class="event-content">
+        <div class="ev-box service">Expense Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box event">ExpenseCreatedEvent</div>
+      </div>
+    </div>
+    <div class="event-row bus">
+      <div class="event-label bus-label">RabbitMQ</div>
+      <div class="event-content">
+        <div class="ev-box event">ExpenseCreatedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Budget Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Update Spent + Alert Check</div>
+      </div>
+    </div>
+    <div class="event-row consumer">
+      <div class="event-label cons-label">Consumer</div>
+      <div class="event-content">
+        <div class="ev-box event">ExpenseCreatedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Analytics Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Update Net Worth Snapshot</div>
+      </div>
+    </div>
+    <div class="event-row consumer">
+      <div class="event-label cons-label">Consumer</div>
+      <div class="event-content">
+        <div class="ev-box event">ExpenseCreatedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">AI Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Invalidate Insight Cache</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">3. Income Events</div>
+  <div class="flow-container">
+    <div class="event-row producer">
+      <div class="event-label prod-label">Producer</div>
+      <div class="event-content">
+        <div class="ev-box service">Income Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box event">IncomeRecordedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Analytics Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Recalculate Savings Rate</div>
+      </div>
+    </div>
+    <div class="event-row consumer">
+      <div class="event-label cons-label">Consumer</div>
+      <div class="event-content">
+        <div class="ev-box event">IncomeRecordedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Goal Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Update Goal Progress</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">4. Loan Events</div>
+  <div class="flow-container">
+    <div class="event-row producer">
+      <div class="event-label prod-label">Producer</div>
+      <div class="event-content">
+        <div class="ev-box service">Loan Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box event">EMIPaidEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Analytics Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Update DTI Ratio</div>
+      </div>
+    </div>
+    <div class="event-row consumer">
+      <div class="event-label cons-label">Consumer</div>
+      <div class="event-content">
+        <div class="ev-box event">LoanPrepaymentEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Analytics Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Recalculate Net Worth</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">5. Investment Events</div>
+  <div class="flow-container">
+    <div class="event-row producer">
+      <div class="event-label prod-label">Producer</div>
+      <div class="event-content">
+        <div class="ev-box service">Investment Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box event">NAVUpdatedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Analytics Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Update Portfolio Value</div>
+      </div>
+    </div>
+    <div class="event-row consumer">
+      <div class="event-label cons-label">Consumer</div>
+      <div class="event-content">
+        <div class="ev-box event">NAVUpdatedEvent</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box service">Notification Svc</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Rebalance Alert</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-header">6. Scheduled Background Jobs (Hangfire)</div>
+  <div class="flow-container">
+    <div class="event-row bus">
+      <div class="event-label bus-label">Daily</div>
+      <div class="event-content">
+        <div class="ev-box service">Net Worth Engine</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Snapshot Net Worth</div>
+        <span style="margin: 0 12px; color: #9CA3AF;">|</span>
+        <div class="ev-box service">Category Engine</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Detect Subscriptions</div>
+      </div>
+    </div>
+    <div class="event-row bus">
+      <div class="event-label bus-label">Weekly</div>
+      <div class="event-content">
+        <div class="ev-box service">AI Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Generate Weekly Insights</div>
+        <span style="margin: 0 12px; color: #9CA3AF;">|</span>
+        <div class="ev-box service">Budget Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Spending Prediction</div>
+      </div>
+    </div>
+    <div class="event-row bus">
+      <div class="event-label bus-label">Monthly</div>
+      <div class="event-content">
+        <div class="ev-box service">Financial Score</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Calculate Score</div>
+        <span style="margin: 0 12px; color: #9CA3AF;">|</span>
+        <div class="ev-box service">Analytics Service</div>
+        <span class="arrow-r">&#8594;</span>
+        <div class="ev-box action">Generate Monthly Report</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="border-color:#3B82F6;background:#EFF6FF;"></div>Service</div>
+    <div class="legend-item"><div class="legend-dot" style="border-color:#F59E0B;background:#FFFBEB;"></div>Event</div>
+    <div class="legend-item"><div class="legend-dot" style="border-color:#10B981;background:#F0FDF4;"></div>Action</div>
+  </div>
+</div>
+</body>
+</html>

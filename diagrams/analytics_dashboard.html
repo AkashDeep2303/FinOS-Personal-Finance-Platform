@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --text: #111827; --text-sub: #6B7280; --bg: #F8FAFC;
+    --surface: #FFFFFF; --border: #E5E7EB;
+    --blue: #3B82F6; --cyan: #06B6D4; --purple: #8B5CF6;
+    --amber: #F59E0B; --green: #10B981; --red: #EF4444;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
+  }
+  #root { max-width: 1100px; margin: 0 auto; padding: 32px 28px; }
+  .dash-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .dash-subtitle { font-size: 13px; color: var(--text-sub); margin-bottom: 24px; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; position: relative; overflow: hidden;
+  }
+  .kpi-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .kpi-card.blue::before { background: var(--blue); }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.purple::before { background: var(--purple); }
+  .kpi-card.amber::before { background: var(--amber); }
+  .kpi-label { font-size: 12px; color: var(--text-sub); margin-bottom: 6px; font-weight: 500; }
+  .kpi-value { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .kpi-change { font-size: 12px; font-weight: 600; }
+  .kpi-change.up { color: var(--green); }
+  .kpi-change.down { color: var(--red); }
+
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px;
+  }
+  .chart-title { font-size: 14px; font-weight: 700; margin-bottom: 16px; }
+  .chart-area {
+    height: 180px; background: #FAFAFA; border-radius: 8px; border: 1px dashed #D1D5DB;
+    display: flex; align-items: center; justify-content: center;
+    color: #9CA3AF; font-size: 13px; font-weight: 500;
+  }
+
+  .score-section {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px; margin-bottom: 24px;
+  }
+  .score-row { display: flex; align-items: center; gap: 32px; }
+  .score-circle {
+    width: 120px; height: 120px; border-radius: 50%; border: 8px solid var(--blue);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .score-number { font-size: 36px; font-weight: 800; color: var(--blue); }
+  .score-details { flex: 1; }
+  .score-detail-item {
+    display: flex; justify-content: space-between; padding: 8px 0;
+    border-bottom: 1px solid #F3F4F6; font-size: 13px;
+  }
+  .score-detail-item:last-child { border-bottom: none; }
+  .score-detail-label { color: var(--text-sub); }
+  .score-detail-value { font-weight: 600; }
+
+  .bottom-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .mini-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px;
+  }
+  .mini-title { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+  .mini-list { list-style: none; }
+  .mini-list li {
+    display: flex; justify-content: space-between; padding: 6px 0;
+    font-size: 12px; border-bottom: 1px solid #F9FAFB;
+  }
+  .mini-list li:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="dash-title">Financial Dashboard</div>
+  <div class="dash-subtitle">Personal Finance Operating System - Analytics Overview</div>
+
+  <!-- KPI Row -->
+  <div class="kpi-row">
+    <div class="kpi-card blue">
+      <div class="kpi-label">Net Worth</div>
+      <div class="kpi-value">&#8377;45.2L</div>
+      <div class="kpi-change up">&#8593; +3.2% this month</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Savings Rate</div>
+      <div class="kpi-value">34%</div>
+      <div class="kpi-change up">&#8593; +2% vs last month</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Monthly Income</div>
+      <div class="kpi-value">&#8377;1.8L</div>
+      <div class="kpi-change up">&#8593; +5% vs avg</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">Debt-to-Income</div>
+      <div class="kpi-value">28%</div>
+      <div class="kpi-change down">&#8595; -1.5% improving</div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Net Worth Trend (12 Months)</div>
+      <div class="chart-area">[Line Chart: Monthly Net Worth Progression]</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Expense vs Income Trend</div>
+      <div class="chart-area">[Grouped Bar Chart: Monthly Expense vs Income]</div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Expense Breakdown by Category</div>
+      <div class="chart-area">[Donut Chart: Category-wise Spending]</div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Asset Allocation</div>
+      <div class="chart-area">[Pie Chart: Equity / Debt / Gold / Real Estate / Cash]</div>
+    </div>
+  </div>
+
+  <!-- Financial Score -->
+  <div class="score-section">
+    <div class="chart-title">Financial Health Score</div>
+    <div class="score-row">
+      <div class="score-circle">
+        <div class="score-number">72</div>
+      </div>
+      <div class="score-details">
+        <div class="score-detail-item"><span class="score-detail-label">Emergency Fund Coverage</span><span class="score-detail-value">4.2 months</span></div>
+        <div class="score-detail-item"><span class="score-detail-label">Debt-to-Income Ratio</span><span class="score-detail-value">28% (Good)</span></div>
+        <div class="score-detail-item"><span class="score-detail-label">Savings Rate</span><span class="score-detail-value">34% (Excellent)</span></div>
+        <div class="score-detail-item"><span class="score-detail-label">Investment Diversification</span><span class="score-detail-value">Moderate</span></div>
+        <div class="score-detail-item"><span class="score-detail-label">Insurance Coverage</span><span class="score-detail-value">Adequate</span></div>
+        <div class="score-detail-item"><span class="score-detail-label">Goal Progress</span><span class="score-detail-value">On Track</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Cards -->
+  <div class="bottom-row">
+    <div class="mini-card">
+      <div class="mini-title">Top Spending Categories</div>
+      <ul class="mini-list">
+        <li><span>Rent</span><span>&#8377;25,000</span></li>
+        <li><span>Groceries</span><span>&#8377;12,500</span></li>
+        <li><span>EMI Payments</span><span>&#8377;18,200</span></li>
+        <li><span>Transport</span><span>&#8377;6,800</span></li>
+        <li><span>Dining Out</span><span>&#8377;5,200</span></li>
+      </ul>
+    </div>
+    <div class="mini-card">
+      <div class="mini-title">Active Goals Progress</div>
+      <ul class="mini-list">
+        <li><span>Emergency Fund</span><span>68%</span></li>
+        <li><span>House Down Payment</span><span>42%</span></li>
+        <li><span>Vacation Fund</span><span>85%</span></li>
+        <li><span>Retirement Corpus</span><span>15%</span></li>
+        <li><span>Car Purchase</span><span>22%</span></li>
+      </ul>
+    </div>
+    <div class="mini-card">
+      <div class="mini-title">AI Quick Insights</div>
+      <ul class="mini-list">
+        <li><span>Dining spend up 35%</span><span style="color:var(--red)">Alert</span></li>
+        <li><span>Prepay home loan?</span><span style="color:var(--green)">Tip</span></li>
+        <li><span>FD maturing soon</span><span style="color:var(--amber)">Action</span></li>
+        <li><span>Tax saving opportunity</span><span style="color:var(--blue)">Info</span></li>
+        <li><span>Budget on track</span><span style="color:var(--green)">Good</span></li>
+      </ul>
+    </div>
+  </div>
+</div>
+</body>
+</html>

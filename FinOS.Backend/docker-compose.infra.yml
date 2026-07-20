@@ -1,0 +1,109 @@
+# ============================================================
+# FinOS Infrastructure - 100% FREE local development stack
+# ============================================================
+# Everything in this file is FREE for development:
+#   - SQL Server 2022 Developer Edition (FREE for dev/test)
+#   - Redis 7 Alpine (FREE, open source)
+# No paid licenses required. No trial periods. No limitations.
+# Usage: docker-compose -f docker-compose.infra.yml up -d
+# ============================================================
+
+name: finos
+
+services:
+  # SQL Server 2022 Developer Edition - FREE for dev/test
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: finos-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_PID=Developer
+      - SA_PASSWORD=CHANGE_ME_SQL_PASSWORD
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ../FinOS.Database/Schema:/scripts/schema:ro
+      - ../FinOS.Database/SeedData:/scripts/seed:ro
+      - ../FinOS.Database/StoredProcedures:/scripts/sps:ro
+      - ../FinOS.Database/Views:/scripts/views:ro
+    networks:
+      - finos-network
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "CHANGE_ME_SQL_PASSWORD" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # SQL Server Init - Runs schema, seed data, SPs, views after SQL Server is healthy
+  init-database:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: finos-db-init
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - ../FinOS.Database/Schema:/scripts/schema:ro
+      - ../FinOS.Database/SeedData:/scripts/seed:ro
+      - ../FinOS.Database/StoredProcedures:/scripts/sps:ro
+      - ../FinOS.Database/Views:/scripts/views:ro
+    networks:
+      - finos-network
+    entrypoint: >
+      bash -c '
+        echo "=== FinOS Database Initialization ===" &&
+        echo "Waiting for SQL Server..." &&
+        sleep 5 &&
+        SQLCMD="/opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P CHANGE_ME_SQL_PASSWORD -C -I" &&
+
+        echo "--- Running Schema Scripts ---" &&
+        for f in /scripts/schema/001_*.sql /scripts/schema/001b_Filegroups.sql /scripts/schema/002_*.sql /scripts/schema/003_*.sql /scripts/schema/004_*.sql /scripts/schema/005_*.sql /scripts/schema/006_*.sql /scripts/schema/007_*.sql /scripts/schema/008_*.sql; do
+          echo "  Executing: $$f" &&
+          $$SQLCMD -i "$$f" || echo "  WARNING: $$f had errors";
+        done &&
+
+        echo "--- Running Seed Data ---" &&
+        for f in /scripts/seed/001_*.sql /scripts/seed/002_*.sql /scripts/seed/003_*.sql; do
+          echo "  Executing: $$f" &&
+          $$SQLCMD -i "$$f" || echo "  WARNING: $$f had errors";
+        done &&
+
+        echo "--- Running Stored Procedures ---" &&
+        for f in /scripts/sps/Security_sp.sql /scripts/sps/Core_sp.sql /scripts/sps/Budget_sp.sql /scripts/sps/Investment_sp.sql /scripts/sps/Loan_sp.sql /scripts/sps/Goals_sp.sql /scripts/sps/Analytics_sp.sql; do
+          echo "  Executing: $$f" &&
+          $$SQLCMD -i "$$f" || echo "  WARNING: $$f had errors";
+        done &&
+
+        echo "--- Running Views ---" &&
+        for f in /scripts/views/Dashboard_Views.sql /scripts/views/Investment_Views.sql /scripts/views/Loan_Views.sql /scripts/views/Budget_Views.sql /scripts/views/Analytics_Views.sql /scripts/views/Admin_Views.sql; do
+          echo "  Executing: $$f" &&
+          $$SQLCMD -i "$$f" || echo "  WARNING: $$f had errors";
+        done &&
+
+        echo "=== Database Initialization Complete ==="
+      '
+
+  # Redis 7 - FREE (open source) - Optional caching layer
+  redis:
+    image: redis:7-alpine
+    container_name: finos-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - finos-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+networks:
+  finos-network:
+    driver: bridge
+
+volumes:
+  sqlserver_data:
+  redis_data:

@@ -1,0 +1,6 @@
+@FinOS.AIAssistant.API_HostAddress = http://localhost:5015
+
+GET {{FinOS.AIAssistant.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

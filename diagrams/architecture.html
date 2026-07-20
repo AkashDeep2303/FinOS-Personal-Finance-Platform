@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --text: #111827; --text-sub: #6B7280; --bg: #FFFFFF;
+    --surface: #F9FAFB; --border: #E5E7EB;
+    --blue: #3B82F6; --cyan: #06B6D4; --purple: #8B5CF6;
+    --amber: #F59E0B; --green: #10B981; --connector: #94A3B8;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
+  }
+  #root { width: fit-content; min-width: 1100px; margin: 0 auto; padding: 40px 36px; }
+  .main-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+  .main-subtitle { font-size: 13px; text-align: center; color: var(--text-sub); margin-bottom: 32px; }
+  .layer {
+    background: #F8FAFC; border-radius: 12px; padding: 18px 22px; margin-bottom: 18px;
+    border: 1.5px solid var(--border); position: relative;
+  }
+  .layer-title {
+    font-size: 14px; font-weight: 700; padding: 6px 14px; border-radius: 6px;
+    margin-bottom: 14px; display: inline-block;
+  }
+  .layer-content { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .service-box {
+    background: white; border: 1.5px solid #D1D5DB; border-radius: 10px;
+    padding: 12px 16px; text-align: center; min-width: 140px; max-width: 180px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .service-box .svc-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+  .service-box .svc-tech { font-size: 11px; color: var(--text-sub); }
+  .arrow-down { text-align: center; color: var(--connector); font-size: 22px; margin: 4px 0; }
+  .layer-client .layer-title { background: #F0F4F8; color: #334155; border-left: 4px solid #64748B; }
+  .layer-gateway .layer-title { background: #FFF7ED; color: #92400E; border-left: 4px solid #F59E0B; }
+  .layer-service .layer-title { background: #EFF6FF; color: #1E40AF; border-left: 4px solid #3B82F6; }
+  .layer-core .layer-title { background: #F0FDF4; color: #065F46; border-left: 4px solid #10B981; }
+  .layer-data .layer-title { background: #F5F3FF; color: #5B21B6; border-left: 4px solid #8B5CF6; }
+  .layer-infra .layer-title { background: #F0F9FF; color: #155E75; border-left: 4px solid #06B6D4; }
+  .service-box.highlight { border-color: #3B82F6; background: #EFF6FF; }
+  .service-box.gateway { border-color: #F59E0B; background: #FFFBEB; }
+  .service-box.data { border-color: #8B5CF6; background: #F5F3FF; }
+  .service-box.infra { border-color: #06B6D4; background: #F0F9FF; }
+  .side-label { position: absolute; right: 18px; top: 14px; font-size: 11px; color: var(--text-sub); font-weight: 500; }
+  .legend {
+    display: flex; gap: 24px; justify-content: center; margin-top: 28px;
+    padding: 14px 24px; background: #F9FAFB; border-radius: 8px; border: 1px solid #E5E7EB;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #4B5563; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="main-title">FinOS - Microservice Architecture</div>
+  <div class="main-subtitle">Production-Grade Scalable Architecture for Personal Finance Operating System</div>
+
+  <div class="layer layer-client">
+    <div class="layer-title">Client Layer</div>
+    <div class="side-label">Vue 3 + Vite / PWA</div>
+    <div class="layer-content">
+      <div class="service-box"><div class="svc-name">Web App</div><div class="svc-tech">Vue 3 + Vite</div></div>
+      <div class="service-box"><div class="svc-name">Mobile App</div><div class="svc-tech">Capacitor / PWA</div></div>
+      <div class="service-box"><div class="svc-name">Admin Portal</div><div class="svc-tech">Vue + Vuetify</div></div>
+    </div>
+  </div>
+  <div class="arrow-down">&#8595;</div>
+
+  <div class="layer layer-gateway">
+    <div class="layer-title">API Gateway & Ingress</div>
+    <div class="side-label">Reverse Proxy + Rate Limit</div>
+    <div class="layer-content">
+      <div class="service-box gateway"><div class="svc-name">Load Balancer</div><div class="svc-tech">AWS ALB / Nginx</div></div>
+      <div class="service-box gateway"><div class="svc-name">API Gateway</div><div class="svc-tech">Ocelot / YARP</div></div>
+      <div class="service-box gateway"><div class="svc-name">Rate Limiter</div><div class="svc-tech">Redis Token Bucket</div></div>
+      <div class="service-box gateway"><div class="svc-name">Auth Middleware</div><div class="svc-tech">JWT + OAuth 2.0</div></div>
+    </div>
+  </div>
+  <div class="arrow-down">&#8595;</div>
+
+  <div class="layer layer-service">
+    <div class="layer-title">Core Microservices</div>
+    <div class="side-label">.NET 8 WebAPI</div>
+    <div class="layer-content">
+      <div class="service-box highlight"><div class="svc-name">Identity Service</div><div class="svc-tech">Auth, JWT, OAuth</div></div>
+      <div class="service-box highlight"><div class="svc-name">User Profile Svc</div><div class="svc-tech">Profile, Family, Prefs</div></div>
+      <div class="service-box highlight"><div class="svc-name">Expense Service</div><div class="svc-tech">Tracking, Import, Tag</div></div>
+      <div class="service-box highlight"><div class="svc-name">Income Service</div><div class="svc-tech">Salary, Freelance, Rent</div></div>
+      <div class="service-box highlight"><div class="svc-name">Loan Service</div><div class="svc-tech">EMI, Prepay, Schedule</div></div>
+      <div class="service-box highlight"><div class="svc-name">Investment Service</div><div class="svc-tech">MF, Stocks, FD, Gold</div></div>
+      <div class="service-box highlight"><div class="svc-name">Budget Service</div><div class="svc-tech">Budgets, Alerts, Predict</div></div>
+      <div class="service-box highlight"><div class="svc-name">Goal Service</div><div class="svc-tech">Goals, Milestones</div></div>
+      <div class="service-box highlight"><div class="svc-name">EPF Service</div><div class="svc-tech">EPF, Retirement</div></div>
+      <div class="service-box highlight"><div class="svc-name">Analytics Service</div><div class="svc-tech">Net Worth, Score</div></div>
+      <div class="service-box highlight"><div class="svc-name">Notification Svc</div><div class="svc-tech">Push, Email, SMS</div></div>
+      <div class="service-box highlight"><div class="svc-name">AI Assistant Svc</div><div class="svc-tech">Chat, Insights, AI</div></div>
+    </div>
+  </div>
+  <div class="arrow-down">&#8595;</div>
+
+  <div class="layer layer-core">
+    <div class="layer-title">Core Engine & Processing</div>
+    <div class="side-label">Background & Event-Driven</div>
+    <div class="layer-content">
+      <div class="service-box"><div class="svc-name">Event Bus</div><div class="svc-tech">RabbitMQ</div></div>
+      <div class="service-box"><div class="svc-name">Job Scheduler</div><div class="svc-tech">Hangfire</div></div>
+      <div class="service-box"><div class="svc-name">Category Engine</div><div class="svc-tech">ML.NET Auto-Tag</div></div>
+      <div class="service-box"><div class="svc-name">Net Worth Engine</div><div class="svc-tech">Daily Snapshot</div></div>
+      <div class="service-box"><div class="svc-name">Financial Score</div><div class="svc-tech">Scoring Algorithm</div></div>
+      <div class="service-box"><div class="svc-name">AI/ML Pipeline</div><div class="svc-tech">Python + FastAPI</div></div>
+    </div>
+  </div>
+  <div class="arrow-down">&#8595;</div>
+
+  <div class="layer layer-data">
+    <div class="layer-title">Data Layer</div>
+    <div class="side-label">Persistence & Cache</div>
+    <div class="layer-content">
+      <div class="service-box data"><div class="svc-name">SQL Server</div><div class="svc-tech">Primary RDBMS</div></div>
+      <div class="service-box data"><div class="svc-name">Redis</div><div class="svc-tech">Cache + Sessions</div></div>
+      <div class="service-box data"><div class="svc-name">Elasticsearch</div><div class="svc-tech">Search + Analytics</div></div>
+      <div class="service-box data"><div class="svc-name">S3 / Blob</div><div class="svc-tech">File Storage</div></div>
+      <div class="service-box data"><div class="svc-name">Read Replica</div><div class="svc-tech">SQL Server Replica</div></div>
+    </div>
+  </div>
+  <div class="arrow-down">&#8595;</div>
+
+  <div class="layer layer-infra">
+    <div class="layer-title">Infrastructure & DevOps</div>
+    <div class="side-label">Cloud + IaC</div>
+    <div class="layer-content">
+      <div class="service-box infra"><div class="svc-name">ECS / AKS</div><div class="svc-tech">Container Orchestration</div></div>
+      <div class="service-box infra"><div class="svc-name">Container Registry</div><div class="svc-tech">Docker Registry</div></div>
+      <div class="service-box infra"><div class="svc-name">Monitoring</div><div class="svc-tech">CloudWatch + Grafana</div></div>
+      <div class="service-box infra"><div class="svc-name">Terraform</div><div class="svc-tech">Infrastructure as Code</div></div>
+      <div class="service-box infra"><div class="svc-name">GitHub Actions</div><div class="svc-tech">CI/CD Pipeline</div></div>
+      <div class="service-box infra"><div class="svc-name">Vault</div><div class="svc-tech">Secret Management</div></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="border-color:#64748B;background:#F0F4F8;"></div>Client</div>
+    <div class="legend-item"><div class="legend-dot" style="border-color:#F59E0B;background:#FFFBEB;"></div>Gateway</div>
+    <div class="legend-item"><div class="legend-dot" style="border-color:#3B82F6;background:#EFF6FF;"></div>Services</div>
+    <div class="legend-item"><div class="legend-dot" style="border-color:#10B981;background:#F0FDF4;"></div>Engine</div>
+    <div class="legend-item"><div class="legend-dot" style="border-color:#8B5CF6;background:#F5F3FF;"></div>Data</div>
+    <div class="legend-item"><div class="legend-dot" style="border-color:#06B6D4;background:#F0F9FF;"></div>Infra</div>
+  </div>
+</div>
+</body>
+</html>

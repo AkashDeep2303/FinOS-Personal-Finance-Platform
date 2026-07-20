@@ -1,0 +1,41 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/secrets.json
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Frontend dependencies and build output
+**/node_modules/
+**/dist/
+**/.vite/
+**/coverage/
+
+# .NET build output and tooling
+**/bin/
+**/obj/
+**/.vs/
+*.user
+*.suo
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+TestResults/
+
+# Local-only workspace material
+.docx_review/
+FinOp/
+

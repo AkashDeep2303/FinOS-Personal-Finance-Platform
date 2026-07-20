@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #FFFFFF;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 48px;
+  }
+  #diagram { width: fit-content; min-width: 1200px; }
+</style>
+</head>
+<body>
+<div id="diagram">
+  <pre class="mermaid">
+erDiagram
+    USERS {
+        uniqueidentifier id PK
+        nvarchar email UK
+        nvarchar password_hash
+        nvarchar full_name
+        nvarchar phone
+        date date_of_birth
+        nvarchar pan_number
+        nvarchar aadhaar_hash
+        nvarchar risk_appetite
+        nvarchar currency
+        nvarchar timezone
+        datetime2 created_at
+        datetime2 updated_at
+        bit is_email_verified
+        bit is_active
+    }
+
+    USER_PROFILE {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        decimal monthly_salary
+        decimal annual_salary
+        nvarchar employment_type
+        nvarchar company_name
+        nvarchar designation
+        date joining_date
+        nvarchar marital_status
+        int family_members
+        nvarchar financial_preference
+        datetime2 created_at
+    }
+
+    FAMILY_MEMBERS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar name
+        nvarchar relation
+        date date_of_birth
+        bit is_dependent
+        decimal monthly_income
+    }
+
+    ACCOUNTS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar account_name
+        nvarchar account_type
+        nvarchar bank_name
+        nvarchar account_number_encrypted
+        decimal balance
+        nvarchar currency
+        datetime2 last_synced
+        datetime2 created_at
+    }
+
+    EXPENSES {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        uniqueidentifier account_id FK
+        uniqueidentifier category_id FK
+        decimal amount
+        nvarchar currency
+        nvarchar description
+        date transaction_date
+        nvarchar source
+        bit is_recurring
+        uniqueidentifier recurring_id FK
+        nvarchar tags
+        datetime2 created_at
+    }
+
+    EXPENSE_CATEGORIES {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar name
+        nvarchar icon
+        nvarchar color
+        nvarchar type
+        bit is_system
+        int sort_order
+    }
+
+    INCOMES {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        uniqueidentifier account_id FK
+        uniqueidentifier category_id FK
+        decimal amount
+        nvarchar currency
+        nvarchar description
+        date transaction_date
+        nvarchar income_type
+        bit is_recurring
+        uniqueidentifier recurring_id FK
+        datetime2 created_at
+    }
+
+    INCOME_CATEGORIES {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar name
+        nvarchar icon
+        nvarchar type
+        bit is_system
+    }
+
+    LOANS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        uniqueidentifier account_id FK
+        nvarchar loan_type
+        decimal principal
+        decimal outstanding_principal
+        decimal interest_rate
+        int tenure_months
+        int remaining_months
+        decimal emi_amount
+        date start_date
+        date end_date
+        nvarchar lender_name
+        nvarchar status
+    }
+
+    EMI_SCHEDULE {
+        uniqueidentifier id PK
+        uniqueidentifier loan_id FK
+        int month_number
+        decimal emi_amount
+        decimal principal_component
+        decimal interest_component
+        decimal outstanding_after
+        date due_date
+        bit is_paid
+        date paid_date
+    }
+
+    LOAN_PREPAYMENT {
+        uniqueidentifier id PK
+        uniqueidentifier loan_id FK
+        decimal amount
+        date prepayment_date
+        nvarchar reduction_type
+        int months_saved
+        decimal interest_saved
+    }
+
+    INVESTMENTS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        uniqueidentifier account_id FK
+        nvarchar investment_type
+        nvarchar name
+        nvarchar folio_number
+        decimal quantity
+        decimal avg_purchase_price
+        decimal current_value
+        decimal invested_amount
+        decimal returns_amount
+        decimal returns_percentage
+        decimal xirr
+        date purchase_date
+        nvarchar broker_name
+        datetime2 last_valuation
+    }
+
+    MUTUAL_FUND_DETAILS {
+        uniqueidentifier id PK
+        uniqueidentifier investment_id FK
+        nvarchar scheme_code
+        nvarchar amc_name
+        nvarchar fund_category
+        nvarchar fund_type
+        nvarchar benchmark
+        decimal nav
+        date nav_date
+    }
+
+    STOCK_DETAILS {
+        uniqueidentifier id PK
+        uniqueidentifier investment_id FK
+        nvarchar exchange
+        nvarchar symbol
+        nvarchar sector
+        decimal current_price
+    }
+
+    EPF_ACCOUNTS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar uan_number
+        nvarchar establishment_id
+        decimal employee_contribution
+        decimal employer_contribution
+        decimal total_balance
+        decimal interest_rate
+        date last_updated
+    }
+
+    EPF_TRANSACTIONS {
+        uniqueidentifier id PK
+        uniqueidentifier epf_account_id FK
+        date transaction_date
+        decimal employee_share
+        decimal employer_share
+        nvarchar month_year
+    }
+
+    BUDGETS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        uniqueidentifier category_id FK
+        decimal allocated_amount
+        decimal spent_amount
+        nvarchar period_type
+        date period_start
+        date period_end
+        datetime2 created_at
+    }
+
+    BUDGET_ALERTS {
+        uniqueidentifier id PK
+        uniqueidentifier budget_id FK
+        nvarchar alert_type
+        decimal threshold_percentage
+        bit is_triggered
+        datetime2 triggered_at
+    }
+
+    GOALS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar name
+        nvarchar goal_type
+        decimal target_amount
+        decimal current_amount
+        date target_date
+        decimal monthly_contribution
+        nvarchar status
+        nvarchar icon
+        datetime2 created_at
+    }
+
+    GOAL_MILESTONES {
+        uniqueidentifier id PK
+        uniqueidentifier goal_id FK
+        nvarchar name
+        decimal target_amount
+        decimal achieved_amount
+        date target_date
+        bit is_achieved
+    }
+
+    NOTIFICATIONS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar title
+        nvarchar message
+        nvarchar type
+        nvarchar channel
+        bit is_read
+        nvarchar payload
+        datetime2 scheduled_at
+        datetime2 sent_at
+    }
+
+    AI_INTERACTIONS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar question
+        nvarchar response
+        nvarchar intent
+        nvarchar context_data
+        nvarchar recommendations
+        decimal confidence_score
+        datetime2 created_at
+    }
+
+    SUBSCRIPTIONS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar name
+        decimal amount
+        nvarchar billing_cycle
+        date next_billing_date
+        nvarchar category
+        bit is_active
+    }
+
+    NET_WORTH_SNAPSHOTS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        decimal total_assets
+        decimal total_liabilities
+        decimal net_worth
+        date snapshot_date
+    }
+
+    RECURRING_TRANSACTIONS {
+        uniqueidentifier id PK
+        uniqueidentifier user_id FK
+        nvarchar transaction_type
+        decimal amount
+        nvarchar frequency
+        date next_date
+        date end_date
+        nvarchar description
+        bit is_active
+    }
+
+    USERS ||--o{ USER_PROFILE : "has"
+    USERS ||--o{ FAMILY_MEMBERS : "has"
+    USERS ||--o{ ACCOUNTS : "owns"
+    USERS ||--o{ EXPENSES : "records"
+    USERS ||--o{ INCOMES : "earns"
+    USERS ||--o{ LOANS : "manages"
+    USERS ||--o{ INVESTMENTS : "holds"
+    USERS ||--o{ EPF_ACCOUNTS : "tracks"
+    USERS ||--o{ BUDGETS : "creates"
+    USERS ||--o{ GOALS : "sets"
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS ||--o{ AI_INTERACTIONS : "queries"
+    USERS ||--o{ SUBSCRIPTIONS : "tracks"
+    USERS ||--o{ NET_WORTH_SNAPSHOTS : "snapshots"
+    USERS ||--o{ RECURRING_TRANSACTIONS : "configures"
+    ACCOUNTS ||--o{ EXPENSES : "debited_for"
+    ACCOUNTS ||--o{ INCOMES : "credited_for"
+    ACCOUNTS ||--o{ LOANS : "linked_to"
+    ACCOUNTS ||--o{ INVESTMENTS : "funded_from"
+    EXPENSE_CATEGORIES ||--o{ EXPENSES : "categorizes"
+    INCOME_CATEGORIES ||--o{ INCOMES : "classifies"
+    LOANS ||--o{ EMI_SCHEDULE : "scheduled_as"
+    LOANS ||--o{ LOAN_PREPAYMENT : "prepaid_by"
+    INVESTMENTS ||--o| MUTUAL_FUND_DETAILS : "detail"
+    INVESTMENTS ||--o| STOCK_DETAILS : "detail"
+    EPF_ACCOUNTS ||--o{ EPF_TRANSACTIONS : "records"
+    EXPENSES }o--o| RECURRING_TRANSACTIONS : "generated_from"
+    BUDGETS ||--o{ BUDGET_ALERTS : "triggers"
+    BUDGETS }o--|| EXPENSE_CATEGORIES : "for_category"
+    GOALS ||--o{ GOAL_MILESTONES : "has"
+  </pre>
+</div>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#EFF6FF',
+      primaryBorderColor: '#3B82F6',
+      primaryTextColor: '#1E293B',
+      lineColor: '#94A3B8',
+      secondaryColor: '#F0FDF4',
+      tertiaryColor: '#FFF7ED',
+      fontSize: '12px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+    },
+    er: {
+      useMaxWidth: false,
+    }
+  });
+</script>
+</body>
+</html>

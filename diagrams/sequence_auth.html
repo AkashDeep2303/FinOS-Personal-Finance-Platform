@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #FFFFFF;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex; justify-content: center; padding: 48px;
+  }
+  #diagram { width: fit-content; min-width: 1100px; }
+</style>
+</head>
+<body>
+<div id="diagram">
+  <pre class="mermaid">
+sequenceDiagram
+    actor U as User
+    participant FE as Vue Frontend
+    participant GW as API Gateway
+    participant ID as Identity Service
+    participant DB as SQL Server
+    participant RD as Redis
+    participant NF as Notification Svc
+
+    rect rgb(239, 246, 255)
+        Note over U, NF: Registration Flow
+        U->>FE: Sign Up Form Submit
+        FE->>GW: POST /api/v1/auth/register
+        GW->>ID: Forward Request
+        ID->>DB: Check Email Uniqueness
+        DB-->>ID: Email Available
+        ID->>DB: Create User (Hashed Password)
+        DB-->>ID: User Created
+        ID->>NF: Publish UserCreatedEvent
+        ID-->>GW: 201 Created + Pending Verification
+        GW-->>FE: Registration Success
+        FE-->>U: Verify Email Prompt
+    end
+
+    rect rgb(240, 253, 244)
+        Note over U, NF: Login Flow
+        U->>FE: Login Credentials
+        FE->>GW: POST /api/v1/auth/login
+        GW->>ID: Validate Credentials
+        ID->>DB: Verify Password Hash
+        DB-->>ID: User Verified
+        ID->>RD: Store Refresh Token
+        ID-->>GW: JWT Access Token + Refresh Token
+        GW-->>FE: 200 OK + Tokens
+        FE-->>U: Redirect to Dashboard
+    end
+
+    rect rgb(255, 247, 237)
+        Note over U, NF: Protected API Call Example
+        U->>FE: View Dashboard
+        FE->>GW: GET /api/v1/analytics/dashboard
+        GW->>ID: Validate JWT
+        ID-->>GW: Token Valid + User Claims
+        GW->>AN: Forward to Analytics Service
+        AN-->>GW: Dashboard Data
+        GW-->>FE: 200 OK + Data
+        FE-->>U: Render Dashboard
+    end
+  </pre>
+</div>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#EFF6FF', primaryBorderColor: '#3B82F6',
+      primaryTextColor: '#1E293B', lineColor: '#94A3B8',
+      secondaryColor: '#F0FDF4', tertiaryColor: '#FFF7ED',
+      fontSize: '13px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
+    },
+    sequence: { mirrorActors: false, messageAlign: 'center' }
+  });
+</script>
+</body>
+</html>
