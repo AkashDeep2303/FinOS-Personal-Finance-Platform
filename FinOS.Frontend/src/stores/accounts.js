@@ -1,6 +1,54 @@
 import { defineStore } from 'pinia'
 import { accountsApi } from '../api/accounts'
 
+const ACCOUNT_TYPE_IDS = {
+  Savings: 1,
+  Current: 2,
+  FD: 5,
+  MF: 5,
+  Demat: 5,
+  Wallet: 7,
+  Cash: 6,
+  PPF: 9
+}
+
+function normalizeAccount(account) {
+  if (!account || typeof account !== 'object') return account
+  const backendType = account.accountTypeName || account.accountType?.name || ''
+  return {
+    ...account,
+    type: account.type || (backendType === 'Investment' ? 'MF' : backendType),
+    bank: account.bank ?? account.institutionName ?? ''
+  }
+}
+
+function unwrapAccounts(response) {
+  const value = response?.data?.data ?? response?.data ?? []
+  return Array.isArray(value) ? value.map(normalizeAccount) : []
+}
+
+function unwrapAccount(response) {
+  return normalizeAccount(response?.data?.data ?? response?.data)
+}
+
+function toApiAccount(accountData, existing = {}) {
+  const type = accountData.type || existing.type || 'Savings'
+  return {
+    accountTypeId: accountData.accountTypeId || existing.accountTypeId || ACCOUNT_TYPE_IDS[type] || 1,
+    name: accountData.name?.trim() || '',
+    institutionName: accountData.institutionName ?? accountData.bank ?? existing.institutionName ?? '',
+    accountNumber: accountData.accountNumber ?? existing.accountNumber ?? null,
+    balance: Number(accountData.balance ?? existing.balance ?? 0),
+    creditLimit: Number(accountData.creditLimit ?? existing.creditLimit ?? 0),
+    currency: accountData.currency || existing.currency || 'INR',
+    color: accountData.color ?? existing.color ?? null,
+    icon: accountData.icon ?? existing.icon ?? null,
+    isIncludedInNetWorth: accountData.isIncludedInNetWorth ?? existing.isIncludedInNetWorth ?? true,
+    notes: accountData.notes ?? existing.notes ?? null,
+    isActive: accountData.isActive ?? existing.isActive ?? true
+  }
+}
+
 export const useAccountsStore = defineStore('accounts', {
   state: () => ({
     accounts: [],
@@ -10,9 +58,7 @@ export const useAccountsStore = defineStore('accounts', {
   }),
 
   getters: {
-    totalBalance: (state) => {
-      return state.accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0)
-    },
+    totalBalance: (state) => state.accounts.reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0),
     accountsByType: (state) => {
       const grouped = {}
       state.accounts.forEach(acc => {
@@ -32,8 +78,7 @@ export const useAccountsStore = defineStore('accounts', {
       this.loading = true
       this.error = null
       try {
-        const response = await accountsApi.getAll()
-        this.accounts = response.data?.data ?? []
+        this.accounts = unwrapAccounts(await accountsApi.getAll())
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to fetch accounts'
       } finally {
@@ -45,9 +90,9 @@ export const useAccountsStore = defineStore('accounts', {
       this.loading = true
       this.error = null
       try {
-        const response = await accountsApi.create(accountData)
-        this.accounts.push(response.data?.data ?? response.data)
-        return response.data
+        const response = await accountsApi.create(toApiAccount(accountData))
+        this.accounts.push(unwrapAccount(response))
+        return unwrapAccount(response)
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to create account'
         throw err
@@ -60,10 +105,12 @@ export const useAccountsStore = defineStore('accounts', {
       this.loading = true
       this.error = null
       try {
-        const response = await accountsApi.update(id, accountData)
+        const existing = this.accounts.find(a => a.id === id) || {}
+        const response = await accountsApi.update(id, toApiAccount(accountData, existing))
+        const updated = unwrapAccount(response)
         const index = this.accounts.findIndex(a => a.id === id)
-        if (index !== -1) this.accounts[index] = response.data
-        return response.data
+        if (index !== -1) this.accounts[index] = updated
+        return updated
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to update account'
         throw err
@@ -91,8 +138,8 @@ export const useAccountsStore = defineStore('accounts', {
       this.error = null
       try {
         const response = await accountsApi.getById(id)
-        this.currentAccount = response.data?.data ?? response.data
-        return response.data
+        this.currentAccount = unwrapAccount(response)
+        return this.currentAccount
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to fetch account'
         throw err

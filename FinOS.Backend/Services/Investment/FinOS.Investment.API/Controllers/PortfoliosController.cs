@@ -2,6 +2,7 @@ using FinOS.Investment.Application.Commands;
 using FinOS.Investment.Application.DTOs;
 using FinOS.Investment.Application.Queries;
 using FinOS.Common.Models;
+using FinOS.Investment.Domain.Interfaces;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,14 +15,41 @@ namespace FinOS.Investment.API.Controllers;
 public class PortfoliosController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IPortfolioRepository _portfolioRepository;
 
-    public PortfoliosController(IMediator mediator) { _mediator = mediator; }
+    public PortfoliosController(IMediator mediator, IPortfolioRepository portfolioRepository)
+    {
+        _mediator = mediator;
+        _portfolioRepository = portfolioRepository;
+    }
 
     [HttpGet("user/{userId}")]
     public async Task<ActionResult<ApiResponse<List<PortfolioListDto>>>> GetByUser(long userId)
     {
-        var portfolios = await _mediator.Send(new GetPortfolioSummaryQuery(0)); // Placeholder
-        return Ok(ApiResponse<List<PortfolioListDto>>.Ok(new List<PortfolioListDto>()));
+        var portfolios = await _portfolioRepository.GetByUserIdAsync(userId);
+        var result = new List<PortfolioListDto>();
+
+        foreach (var portfolio in portfolios.Where(p => p.DeletedAt == null))
+        {
+            var withHoldings = await _portfolioRepository.GetWithHoldingsAsync(portfolio.Id);
+            var holdings = withHoldings?.Holdings?.Where(h => h.IsActive && h.DeletedAt == null).ToList() ?? new();
+            var invested = holdings.Sum(h => h.InvestedAmount);
+            var current = holdings.Sum(h => h.CurrentValue);
+
+            result.Add(new PortfolioListDto
+            {
+                Id = portfolio.Id,
+                Name = portfolio.Name,
+                Description = portfolio.Description,
+                TotalInvested = invested,
+                CurrentValue = current,
+                TotalReturnPct = invested > 0 ? Math.Round((current - invested) / invested * 100, 2) : 0,
+                HoldingCount = holdings.Count,
+                IsDefault = portfolio.IsDefault
+            });
+        }
+
+        return Ok(ApiResponse<List<PortfolioListDto>>.Ok(result));
     }
 
     [HttpGet("{id}/summary")]

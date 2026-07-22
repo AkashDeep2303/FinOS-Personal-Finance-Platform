@@ -115,7 +115,7 @@ The script automatically:
 
 | Service       | Port | URL                        | Database            |
 |---------------|------|----------------------------|---------------------|
-| Gateway       | 6000 | http://localhost:6000      | —                   |
+| Gateway       | 8080 | http://localhost:8080      | —                   |
 | Identity      | 5001 | http://localhost:5001      | FinOS_Identity      |
 | CoreFinance   | 5002 | http://localhost:5002      | FinOS_CoreFinance   |
 | Budget        | 5003 | http://localhost:5003      | FinOS_Budget        |
@@ -169,7 +169,7 @@ npm run build
 
 4. Update the frontend API base URL in `.env.production`:
 ```
-VITE_API_BASE_URL=http://localhost:6000
+VITE_API_BASE_URL=http://localhost:8080
 ```
 
 ---
@@ -177,8 +177,8 @@ VITE_API_BASE_URL=http://localhost:6000
 ## Step 6: Access the Application
 
 - **Frontend**: http://localhost (or your configured port)
-- **Gateway API**: http://localhost:6000
-- **Swagger (Gateway)**: http://localhost:6000/swagger
+- **Gateway API**: http://localhost:8080
+- **Swagger (Gateway)**: http://localhost:8080/swagger
 - **Individual Service APIs**: http://localhost:{PORT}/swagger
 
 ---
@@ -254,7 +254,7 @@ sqlcmd -S "localhost\SQLEXPRESS" -E -Q "SELECT 1"
 **Solution**:
 ```powershell
 # Find what's using a port
-netstat -ano | findstr :6000
+netstat -ano | findstr :8080
 
 # Kill the process (if safe to do so)
 taskkill /PID <PID> /F
@@ -317,7 +317,7 @@ This will:
 2. **Enable HTTPS**: Configure SSL certificates for all services
 3. **Secure Connection Strings**: Use encrypted connection strings or Windows Authentication
 4. **Restrict CORS**: Only allow specific origins
-5. **Firewall**: Only expose the Gateway (port 6000) and Frontend (port 80/443) externally
+5. **Firewall**: Only expose the Gateway (port 8080) and Frontend (port 80/443) externally
 6. **Rate Limiting**: Configure rate limiting on the Gateway
 7. **Logging**: Enable comprehensive logging and monitoring
 

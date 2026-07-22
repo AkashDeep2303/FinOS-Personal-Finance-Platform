@@ -85,6 +85,9 @@ public class UpdateProfileRequest
 
     [Phone(ErrorMessage = "Invalid phone number format")]
     public string? PhoneNumber { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    [StringLength(2000, ErrorMessage = "Bio cannot exceed 2000 characters")]
+    public string? Bio { get; set; }
 
     public string? ProfileImageUrl { get; set; }
     public string? Currency { get; set; }
@@ -100,6 +103,9 @@ public class UserProfileDto
     public string LastName { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    [StringLength(2000, ErrorMessage = "Bio cannot exceed 2000 characters")]
+    public string? Bio { get; set; }
     public string? ProfileImageUrl { get; set; }
     public bool EmailVerified { get; set; }
     public bool PhoneVerified { get; set; }

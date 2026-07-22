@@ -87,26 +87,51 @@ public class HoldingRepository : IHoldingRepository
         return result.ToList();
     }
 
-    public async Task<long> AddHoldingAsync(long portfolioId, string assetClass, string name, string? ticker, decimal quantity, decimal avgBuyPrice, decimal currentPrice, string? fundCategory, string? riskLevel, CancellationToken ct = default)
+    public async Task<long> AddHoldingAsync(
+        long portfolioId,
+        long investmentTypeId,
+        string? symbol,
+        string name,
+        decimal quantity,
+        decimal avgPurchasePrice,
+        decimal currentPrice,
+        decimal currentValue,
+        decimal investedAmount,
+        string? fundHouse,
+        string? fundCategory,
+        string? riskLevel,
+        DateTime? maturityDate,
+        decimal? interestRate,
+        DateTime? lockInEndDate,
+        string? notes,
+        CancellationToken ct = default)
     {
         using var connection = _connectionFactory.CreateConnection();
         var parameters = new DynamicParameters();
         parameters.Add("@PortfolioId", portfolioId);
-        parameters.Add("@AssetClass", assetClass);
+        parameters.Add("@InvestmentTypeId", investmentTypeId);
+        parameters.Add("@Symbol", symbol ?? string.Empty);
         parameters.Add("@Name", name);
-        parameters.Add("@Ticker", ticker);
         parameters.Add("@Quantity", quantity);
-        parameters.Add("@AvgBuyPrice", avgBuyPrice);
+        parameters.Add("@AvgPurchasePrice", avgPurchasePrice);
         parameters.Add("@CurrentPrice", currentPrice);
+        parameters.Add("@CurrentValue", currentValue);
+        parameters.Add("@InvestedAmount", investedAmount);
+        parameters.Add("@Currency", "INR");
+        parameters.Add("@FundHouse", fundHouse);
         parameters.Add("@FundCategory", fundCategory);
         parameters.Add("@RiskLevel", riskLevel);
-        parameters.Add("@Id", dbType: System.Data.DbType.Int64, direction: System.Data.ParameterDirection.Output);
+        parameters.Add("@MaturityDate", maturityDate);
+        parameters.Add("@InterestRate", interestRate);
+        parameters.Add("@LockInEndDate", lockInEndDate);
+        parameters.Add("@Notes", notes);
+        parameters.Add("@NewHoldingId", dbType: System.Data.DbType.Int64, direction: System.Data.ParameterDirection.Output);
 
         await connection.ExecuteAsync(
-            "Investment.sp_AddHolding", parameters,
+            "Investment.sp_CreateHolding", parameters,
             commandType: System.Data.CommandType.StoredProcedure);
 
-        return parameters.Get<long>("@Id");
+        return parameters.Get<long>("@NewHoldingId");
     }
 
     public async Task UpdateHoldingPriceAsync(long holdingId, decimal currentPrice, CancellationToken ct = default)
@@ -120,7 +145,7 @@ public class HoldingRepository : IHoldingRepository
 
     public async Task<Holding> AddAsync(Holding entity, CancellationToken ct = default)
     {
-        var id = await AddHoldingAsync(entity.PortfolioId, entity.FundCategory?.ToString() ?? "Equity", entity.Name, entity.Symbol, entity.Quantity, entity.AvgPurchasePrice, entity.CurrentPrice, entity.FundCategory?.ToString(), entity.RiskLevel?.ToString(), ct);
+        var id = await AddHoldingAsync(entity.PortfolioId, entity.InvestmentTypeId, entity.Symbol, entity.Name, entity.Quantity, entity.AvgPurchasePrice, entity.CurrentPrice, entity.CurrentValue, entity.InvestedAmount, entity.FundHouse, entity.FundCategory?.ToString(), entity.RiskLevel?.ToString(), entity.MaturityDate, entity.InterestRate, entity.LockInEndDate, entity.Notes, ct);
         entity.Id = id;
         return entity;
     }

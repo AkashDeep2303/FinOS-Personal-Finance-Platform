@@ -11,6 +11,8 @@ public class User : IAuditableEntity, ISoftDeletable
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string? Bio { get; set; }
     public string? ProfileImageUrl { get; set; }
     public bool IsActive { get; set; } = true;
     public bool EmailVerified { get; set; }

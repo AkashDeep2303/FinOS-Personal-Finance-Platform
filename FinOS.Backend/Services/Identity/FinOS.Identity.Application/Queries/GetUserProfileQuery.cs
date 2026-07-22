@@ -36,6 +36,8 @@ public class GetUserProfileQueryHandler : IRequestHandler<GetUserProfileQuery, U
             LastName = user.LastName,
             FullName = user.FullName,
             PhoneNumber = user.PhoneNumber,
+            DateOfBirth = user.DateOfBirth,
+            Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
             EmailVerified = user.EmailVerified,
             PhoneVerified = user.PhoneVerified,

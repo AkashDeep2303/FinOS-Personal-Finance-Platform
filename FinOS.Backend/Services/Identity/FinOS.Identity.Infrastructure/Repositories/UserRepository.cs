@@ -119,7 +119,9 @@ public class UserRepository : IUserRepository
         parameters.Add("@FirstName", user.FirstName, DbType.String, size: 50);
         parameters.Add("@LastName", user.LastName, DbType.String, size: 50);
         parameters.Add("@PhoneNumber", user.PhoneNumber, DbType.String, size: 20);
-        parameters.Add("@ProfileImageUrl", user.ProfileImageUrl, DbType.String, size: 500);
+         parameters.Add("@DateOfBirth", user.DateOfBirth, DbType.Date);
+        parameters.Add("@Bio", user.Bio, DbType.String, size: 2000);
+       parameters.Add("@ProfileImageUrl", user.ProfileImageUrl, DbType.String, size: 500);
         parameters.Add("@Currency", user.Currency, DbType.String, size: 3);
         parameters.Add("@TimeZone", user.TimeZone, DbType.String, size: 50);
         parameters.Add("@Locale", user.Locale, DbType.String, size: 10);

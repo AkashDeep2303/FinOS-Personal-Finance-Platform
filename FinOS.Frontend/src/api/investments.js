@@ -10,7 +10,15 @@ export const investmentsApi = {
   },
 
   getById(id) {
-    return api.get(`/api/investment/holdings/${id}`)
+    return api.get('/api/investment/holdings/' + id)
+  },
+
+  getSummary(portfolioId) {
+    return api.get('/api/investment/portfolios/' + portfolioId + '/summary')
+  },
+
+  createPortfolio(data) {
+    return api.post('/api/investment/portfolios', data)
   },
 
   create(data) {

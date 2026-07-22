@@ -1,4 +1,4 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- FinOS Database - Security Stored Procedures
 -- Target: Microsoft SQL Server (SSMS)
 -- Description: Stored procedures for user management, authentication, and audit
@@ -128,6 +128,7 @@ END;
 GO
 
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
 -- SP: Security.sp_UpdateUser
 -- Description: Update user profile fields
 -- ---------------------------------------------------------------------------
@@ -140,6 +141,8 @@ CREATE PROCEDURE Security.sp_UpdateUser
     @FirstName           NVARCHAR(100)       = NULL,
     @LastName            NVARCHAR(100)       = NULL,
     @PhoneNumber         NVARCHAR(20)        = NULL,
+    @DateOfBirth         DATE                = NULL,
+    @Bio                 NVARCHAR(2000)      = NULL,
     @ProfileImageUrl     NVARCHAR(512)       = NULL,
     @Currency            NVARCHAR(3)         = NULL,
     @TimeZone            NVARCHAR(50)        = NULL,
@@ -153,52 +156,49 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
-        -- Validate user exists
         IF NOT EXISTS (SELECT 1 FROM Security.Users WHERE Id = @UserId AND DeletedAt IS NULL)
         BEGIN
             RAISERROR('User with Id %d does not exist or is deleted.', 16, 1, @UserId);
             RETURN;
         END
 
-        -- Capture old values for audit
         DECLARE @OldValues NVARCHAR(MAX);
         SELECT @OldValues = (
-            SELECT FirstName, LastName, PhoneNumber, ProfileImageUrl,
+            SELECT FirstName, LastName, PhoneNumber, DateOfBirth, Bio, ProfileImageUrl,
                    Currency, TimeZone, Locale, TwoFactorEnabled, IsActive, PhoneVerified
             FROM Security.Users
             WHERE Id = @UserId
             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         );
 
-        -- Update only provided (non-NULL) fields
         UPDATE Security.Users
         SET
             FirstName        = ISNULL(@FirstName, FirstName),
             LastName         = ISNULL(@LastName, LastName),
-            PhoneNumber      = @PhoneNumber,       -- Allow explicit NULL
-            ProfileImageUrl  = @ProfileImageUrl,   -- Allow explicit NULL
+            PhoneNumber      = @PhoneNumber,
+            DateOfBirth      = @DateOfBirth,
+            Bio              = @Bio,
+            ProfileImageUrl  = @ProfileImageUrl,
             Currency         = ISNULL(@Currency, Currency),
             TimeZone         = ISNULL(@TimeZone, TimeZone),
             Locale           = ISNULL(@Locale, Locale),
             TwoFactorEnabled = ISNULL(@TwoFactorEnabled, TwoFactorEnabled),
-            TwoFactorSecret  = @TwoFactorSecret,   -- Allow explicit NULL to clear
+            TwoFactorSecret  = @TwoFactorSecret,
             IsActive         = ISNULL(@IsActive, IsActive),
             PhoneVerified    = ISNULL(@PhoneVerified, PhoneVerified),
             UpdatedAt        = SYSUTCDATETIME()
         WHERE Id = @UserId
           AND DeletedAt IS NULL;
 
-        -- Capture new values for audit
         DECLARE @NewValues NVARCHAR(MAX);
         SELECT @NewValues = (
-            SELECT FirstName, LastName, PhoneNumber, ProfileImageUrl,
+            SELECT FirstName, LastName, PhoneNumber, DateOfBirth, Bio, ProfileImageUrl,
                    Currency, TimeZone, Locale, TwoFactorEnabled, IsActive, PhoneVerified
             FROM Security.Users
             WHERE Id = @UserId
             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         );
 
-        -- Audit log
         INSERT INTO Security.AuditLog (UserId, ActionType, EntityType, EntityId, OldValues, NewValues)
         VALUES (@UserId, N'UPDATE', N'User', CAST(@UserId AS NVARCHAR(256)), @OldValues, @NewValues);
     END TRY
@@ -212,8 +212,6 @@ BEGIN
     END CATCH;
 END;
 GO
-
--- ---------------------------------------------------------------------------
 -- SP: Security.sp_VerifyEmail
 -- Description: Set EmailVerified = 1 for a user
 -- ---------------------------------------------------------------------------
@@ -570,4 +568,3 @@ GO
 
 PRINT 'Security stored procedures created successfully.';
 GO
-
