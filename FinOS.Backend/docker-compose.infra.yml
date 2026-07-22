@@ -18,7 +18,8 @@ services:
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_PID=Developer
-      - SA_PASSWORD=CHANGE_ME_SQL_PASSWORD
+      - SA_PASSWORD=${SQL_SERVER_SA_PASSWORD:?SQL_SERVER_SA_PASSWORD must be set}
+      - SQL_SERVER_SA_PASSWORD=${SQL_SERVER_SA_PASSWORD:?SQL_SERVER_SA_PASSWORD must be set}
     ports:
       - "1433:1433"
     volumes:
@@ -30,7 +31,7 @@ services:
     networks:
       - finos-network
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "CHANGE_ME_SQL_PASSWORD" -C -Q "SELECT 1" || exit 1
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$SQL_SERVER_SA_PASSWORD" -C -Q "SELECT 1" || exit 1
       interval: 10s
       timeout: 5s
       retries: 15
@@ -50,12 +51,14 @@ services:
       - ../FinOS.Database/Views:/scripts/views:ro
     networks:
       - finos-network
+    environment:
+      - SQL_SERVER_SA_PASSWORD=${SQL_SERVER_SA_PASSWORD:?SQL_SERVER_SA_PASSWORD must be set}
     entrypoint: >
       bash -c '
         echo "=== FinOS Database Initialization ===" &&
         echo "Waiting for SQL Server..." &&
         sleep 5 &&
-        SQLCMD="/opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P CHANGE_ME_SQL_PASSWORD -C -I" &&
+        SQLCMD="/opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P $$SQL_SERVER_SA_PASSWORD -C -I" &&
 
         echo "--- Running Schema Scripts ---" &&
         for f in /scripts/schema/001_*.sql /scripts/schema/001b_Filegroups.sql /scripts/schema/002_*.sql /scripts/schema/003_*.sql /scripts/schema/004_*.sql /scripts/schema/005_*.sql /scripts/schema/006_*.sql /scripts/schema/007_*.sql /scripts/schema/008_*.sql; do

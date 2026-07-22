@@ -6,7 +6,7 @@
         @click="showAddModal = true"
         class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
       >
-        <span class="mr-2">＋</span> Add Account
+        <span class="mr-2">&#43;</span> Add Account
       </button>
     </div>
 
@@ -41,12 +41,12 @@
             </div>
             <div>
               <h3 class="font-semibold text-gray-900">{{ account.name }}</h3>
-              <p class="text-xs text-gray-500">{{ account.type }} · {{ account.bank || 'N/A' }}</p>
+              <p class="text-xs text-gray-500">{{ account.type }} &middot; {{ account.bank || 'N/A' }}</p>
             </div>
           </div>
           <div class="flex space-x-1">
-            <button @click="editAccount(account)" class="p-1 text-gray-400 hover:text-primary-600 transition-colors" title="Edit">✏️</button>
-            <button @click="deleteAccount(account.id)" class="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Delete">🗑️</button>
+            <button @click="editAccount(account)" class="p-1 text-gray-400 hover:text-primary-600 transition-colors" title="Edit">&#9999;&#65039;</button>
+            <button @click="deleteAccount(account.id)" class="p-1 text-gray-400 hover:text-red-600 transition-colors" title="Delete">&#128465;&#65039;</button>
           </div>
         </div>
         <div class="border-t border-gray-100 pt-4">
@@ -63,7 +63,7 @@
 
     <!-- Empty State -->
     <div v-if="accounts.length === 0 && !loading" class="text-center py-12">
-      <p class="text-4xl mb-4">🏦</p>
+      <p class="text-4xl mb-4">&#127974;</p>
       <h3 class="text-lg font-medium text-gray-900 mb-2">No accounts yet</h3>
       <p class="text-gray-500 mb-4">Add your bank accounts, wallets, and investments to get started.</p>
       <button @click="showAddModal = true" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
@@ -77,7 +77,7 @@
         <div class="p-6 border-b border-gray-100">
           <div class="flex items-center justify-between">
             <h2 class="text-lg font-bold text-gray-900">{{ editingAccount ? 'Edit Account' : 'Add Account' }}</h2>
-            <button @click="closeModal" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            <button @click="closeModal" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
           </div>
         </div>
         <form @submit.prevent="saveAccount" class="p-6 space-y-4">
@@ -108,7 +108,7 @@
               placeholder="e.g., HDFC Bank" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Opening Balance (₹)</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Opening Balance (&#8377;)</label>
             <input v-model.number="form.balance" type="number" step="0.01" required
               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
               placeholder="0.00" />
@@ -170,12 +170,17 @@ function formatDate(date) {
 
 function getAccountIcon(type) {
   const icons = {
-    Savings: '🏦', Current: '💳', FD: '📋', MF: '📊',
-    Demat: '📈', Wallet: '📱', Cash: '💵', PPF: '🏛️'
+    Savings: 0x1F3E6,
+    Current: 0x1F4B3,
+    FD: 0x1F4CB,
+    MF: 0x1F4CA,
+    Demat: 0x1F4C8,
+    Wallet: 0x1F4F1,
+    Cash: 0x1F4B5,
+    PPF: 0x1F3DB
   }
-  return icons[type] || '🏦'
+  return String.fromCodePoint(icons[type] || 0x1F3E6)
 }
-
 function getAccountColorClass(type) {
   const classes = {
     Savings: 'bg-blue-100', Current: 'bg-green-100', FD: 'bg-amber-100',

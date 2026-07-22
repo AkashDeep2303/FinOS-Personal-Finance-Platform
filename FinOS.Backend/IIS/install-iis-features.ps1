@@ -14,53 +14,72 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit 1
 }
 
-# Check if IIS is already installed
-$iisInstalled = Get-WindowsFeature -Name Web-Server | Where-Object { $_.Installed -eq $true }
+# Detect Windows Server versus Windows client (Windows 10/11)
+$isWindowsServer = (Get-CimInstance Win32_OperatingSystem).ProductType -ne 1
+$featureFailures = @()
 
-if ($iisInstalled) {
-    Write-Host "[INFO] IIS is already installed." -ForegroundColor Green
-} else {
-    Write-Host "[STEP 1] Installing IIS and required features..." -ForegroundColor Yellow
-    
-    # Enable IIS features
+if ($isWindowsServer) {
+    Import-Module ServerManager -ErrorAction Stop
+    $iisInstalled = (Get-WindowsFeature -Name Web-Server).Installed
     $features = @(
-        "Web-Server",
-        "Web-WebServer",
-        "Web-Common-Http",
-        "Web-Default-Doc",
-        "Web-Dir-Browsing",
-        "Web-Http-Errors",
-        "Web-Static-Content",
-        "Web-Health",
-        "Web-Http-Logging",
-        "Web-Request-Monitor",
-        "Web-Performance",
-        "Web-Stat-Compression",
-        "Web-Dyn-Compression",
-        "Web-Security",
-        "Web-Filtering",
-        "Web-Windows-Auth",
-        "Web-App-Dev",
-        "Web-Net-Ext45",
-        "Web-Asp-Net45",
-        "Web-ISAPI-Ext",
-        "Web-ISAPI-Filter",
-        "Web-Mgmt-Tools",
-        "Web-Mgmt-Console",
-        "Web-Scripting-Tools"
+        'Web-Server','Web-WebServer','Web-Common-Http','Web-Default-Doc','Web-Dir-Browsing',
+        'Web-Http-Errors','Web-Static-Content','Web-Health','Web-Http-Logging','Web-Request-Monitor',
+        'Web-Performance','Web-Stat-Compression','Web-Dyn-Compression','Web-Security','Web-Filtering',
+        'Web-Windows-Auth','Web-App-Dev','Web-Net-Ext45','Web-Asp-Net45','Web-ISAPI-Ext',
+        'Web-ISAPI-Filter','Web-Mgmt-Tools','Web-Mgmt-Console','Web-Scripting-Tools'
     )
 
-    foreach ($feature in $features) {
-        Write-Host "  Enabling: $feature" -ForegroundColor Gray
-        $result = Enable-WindowsOptionalFeature -Online -FeatureName $feature -NoRestart -ErrorAction SilentlyContinue
-        if ($result -eq $null) {
-            Write-Host "    [WARN] Feature $feature not available or already enabled" -ForegroundColor DarkYellow
+    if (-not $iisInstalled) {
+        Write-Host '[STEP 1] Installing IIS and required Server features...' -ForegroundColor Yellow
+        foreach ($feature in $features) {
+            Write-Host "  Enabling: $feature" -ForegroundColor Gray
+            try {
+                $result = Install-WindowsFeature -Name $feature -IncludeManagementTools -ErrorAction Stop
+                if (-not $result.Success) { $featureFailures += $feature }
+            } catch {
+                Write-Host "    [ERROR] $($_.Exception.Message)" -ForegroundColor Red
+                $featureFailures += $feature
+            }
         }
+    } else {
+        Write-Host '[INFO] IIS is already installed.' -ForegroundColor Green
+    }
+} else {
+    $iisInstalled = (Get-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole -ErrorAction SilentlyContinue).State -eq 'Enabled'
+    $features = @(
+        'IIS-WebServerRole','IIS-WebServer','IIS-CommonHttpFeatures','IIS-DefaultDocument','IIS-DirectoryBrowsing',
+        'IIS-HttpErrors','IIS-StaticContent','IIS-HealthAndDiagnostics','IIS-HttpLogging','IIS-RequestMonitor',
+        'IIS-Performance','IIS-HttpCompressionStatic','IIS-HttpCompressionDynamic','IIS-Security','IIS-RequestFiltering',
+        'IIS-WindowsAuthentication','IIS-ApplicationDevelopment','IIS-NetFxExtensibility45','IIS-ASPNET45',
+        'IIS-ISAPIExtensions','IIS-ISAPIFilter','IIS-WebServerManagementTools','IIS-ManagementConsole','IIS-ManagementScriptingTools'
+    )
+
+    if (-not $iisInstalled) {
+        Write-Host '[STEP 1] Installing IIS and required Windows optional features...' -ForegroundColor Yellow
+    } else {
+        Write-Host '[INFO] IIS is already installed; verifying required features...' -ForegroundColor Green
     }
 
-    Write-Host "[OK] IIS features enabled." -ForegroundColor Green
+    foreach ($feature in $features) {
+        $state = (Get-WindowsOptionalFeature -Online -FeatureName $feature -ErrorAction SilentlyContinue).State
+        if ($state -eq 'Enabled') {
+            continue
+        }
+        Write-Host "  Enabling: $feature" -ForegroundColor Gray
+        try {
+            Enable-WindowsOptionalFeature -Online -FeatureName $feature -All -NoRestart -ErrorAction Stop | Out-Null
+        } catch {
+            Write-Host "    [ERROR] $($_.Exception.Message)" -ForegroundColor Red
+            $featureFailures += $feature
+        }
+    }
 }
 
+if ($featureFailures.Count -gt 0) {
+    Write-Host "[ERROR] Could not enable IIS features: $($featureFailures -join ', ')" -ForegroundColor Red
+    exit 1
+}
+Write-Host '[OK] IIS features verified.' -ForegroundColor Green
 # Verify IIS is running
 Write-Host ""
 Write-Host "[STEP 2] Verifying IIS service..." -ForegroundColor Yellow
@@ -111,7 +130,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor White
 Write-Host "  1. Run 'deploy-to-iis.ps1' to deploy FinOS services" -ForegroundColor Gray
-Write-Host "  2. Access Gateway at http://localhost:6000" -ForegroundColor Gray
+Write-Host "  2. Access Gateway at http://localhost:8080" -ForegroundColor Gray
 Write-Host ""
 
 # Function to install .NET 8 Hosting Bundle

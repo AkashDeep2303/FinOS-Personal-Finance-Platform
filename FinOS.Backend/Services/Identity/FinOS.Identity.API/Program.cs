@@ -43,7 +43,7 @@ builder.Services.AddAuthorization();
 
 // CORS
 builder.Services.AddCors(o => o.AddPolicy("FinOSCors", p => {
-    p.WithOrigins("http://localhost:5173","http://localhost:3000").AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+    p.WithOrigins("http://localhost:5173","http://localhost:5174","http://localhost:3000").AllowAnyHeader().AllowAnyMethod().AllowCredentials();
 }));
 
 // Swagger

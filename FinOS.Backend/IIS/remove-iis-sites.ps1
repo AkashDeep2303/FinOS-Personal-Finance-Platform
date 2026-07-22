@@ -24,7 +24,7 @@ Import-Module WebAdministration
 
 # Service names
 $ServiceNames = @("Gateway", "Identity", "CoreFinance", "Budget", "Investment", "Loan", "Goals", "Analytics", "AI", "Notification")
-$Ports = @(6000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009)
+$Ports = @(8080, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009)
 $FinOSBasePath = "C:\FinOS"
 
 # Step 1: Stop and remove websites

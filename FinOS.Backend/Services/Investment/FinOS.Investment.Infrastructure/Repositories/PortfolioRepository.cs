@@ -79,21 +79,23 @@ public class PortfolioRepository : IPortfolioRepository
         return portfolio;
     }
 
-    public async Task<long> CreatePortfolioAsync(long userId, string name, string? description, string? riskLevel, CancellationToken ct = default)
+    public async Task<long> CreatePortfolioAsync(long userId, string name, string? description, string currency, bool isDefault = false, CancellationToken ct = default)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var parameters = new DynamicParameters();
-        parameters.Add("@UserId", userId);
-        parameters.Add("@Name", name);
-        parameters.Add("@Description", description);
-        parameters.Add("@RiskLevel", riskLevel);
-        parameters.Add("@Id", dbType: System.Data.DbType.Int64, direction: System.Data.ParameterDirection.Output);
+        const string sql = @"
+            INSERT INTO [Investment].[Portfolios]
+                (UserId, Name, Description, Currency, IsDefault)
+            OUTPUT INSERTED.Id
+            VALUES (@UserId, @Name, @Description, @Currency, @IsDefault);";
 
-        await connection.ExecuteAsync(
-            "Investment.sp_CreatePortfolio", parameters,
-            commandType: System.Data.CommandType.StoredProcedure);
-
-        return parameters.Get<long>("@Id");
+        return await connection.ExecuteScalarAsync<long>(sql, new
+        {
+            UserId = userId,
+            Name = name,
+            Description = description,
+            Currency = string.IsNullOrWhiteSpace(currency) ? "INR" : currency,
+            IsDefault = isDefault
+        });
     }
 
     public async Task<PortfolioSummaryResult?> GetPortfolioSummaryAsync(long portfolioId, CancellationToken ct = default)
@@ -124,7 +126,7 @@ public class PortfolioRepository : IPortfolioRepository
 
     public async Task<Portfolio> AddAsync(Portfolio entity, CancellationToken ct = default)
     {
-        var id = await CreatePortfolioAsync(entity.UserId, entity.Name, entity.Description, entity.Currency, ct);
+        var id = await CreatePortfolioAsync(entity.UserId, entity.Name, entity.Description, entity.Currency, entity.IsDefault, ct);
         entity.Id = id;
         return entity;
     }

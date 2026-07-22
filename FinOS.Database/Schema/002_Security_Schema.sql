@@ -63,6 +63,14 @@ END
 GO
 
 -- ---------------------------------------------------------------------------
+-- Add optional profile fields to existing installations as well as fresh databases.
+IF COL_LENGTH(N'Security.Users', N'DateOfBirth') IS NULL
+    ALTER TABLE Security.Users ADD DateOfBirth DATE NULL;
+IF COL_LENGTH(N'Security.Users', N'Bio') IS NULL
+    ALTER TABLE Security.Users ADD Bio NVARCHAR(2000) NULL;
+GO
+
+-- ---------------------------------------------------------------------------
 -- Table: Roles
 -- ---------------------------------------------------------------------------
 IF OBJECT_ID(N'Security.Roles', N'U') IS NULL

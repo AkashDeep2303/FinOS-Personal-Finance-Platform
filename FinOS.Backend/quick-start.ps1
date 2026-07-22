@@ -17,7 +17,10 @@
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$SaPassword = "CHANGE_ME_SQL_PASSWORD"
+$envFile = Join-Path $ScriptDir '.env'
+$passwordLine = if (Test-Path $envFile) { Get-Content $envFile | Where-Object { $_ -match '^SQL_SERVER_SA_PASSWORD=' } | Select-Object -First 1 }
+$SaPassword = if ($passwordLine) { ($passwordLine -split '=', 2)[1].Trim() } else { $null }
+if ([string]::IsNullOrWhiteSpace($SaPassword) -or $SaPassword -eq 'CHANGE_ME_SQL_PASSWORD') { throw 'SQL_SERVER_SA_PASSWORD is missing or still a placeholder in .env' }
 
 $Services = @(
     @{ Path = "APIGateways\FinOS.Gateway";                   Port = 6000; Name = "Gateway"       },
@@ -146,6 +149,8 @@ Write-Host " OK" -ForegroundColor Green
 # Start All Services
 # ============================================================================
 Write-Host "[5/6] Starting microservices..." -ForegroundColor Yellow
+$previousConnectionString = $env:ConnectionStrings__DefaultConnection
+$env:ConnectionStrings__DefaultConnection = "Server=localhost,1433;Database=FinOS;User Id=sa;Password=$SaPassword;TrustServerCertificate=True;MultipleActiveResultSets=True"
 foreach ($svc in $Services) {
     $projectPath = Join-Path $ScriptDir $svc.Path
     if (Test-Path $projectPath) {
@@ -160,6 +165,7 @@ foreach ($svc in $Services) {
     Start-Sleep -Milliseconds 500
 }
 Write-Host "       Services launched" -ForegroundColor Green
+$env:ConnectionStrings__DefaultConnection = $previousConnectionString
 
 # ============================================================================
 # Start Frontend

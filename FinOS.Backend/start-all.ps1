@@ -15,10 +15,23 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 # ============================================================================
 # Configuration
 # ============================================================================
-$SaPassword = "CHANGE_ME_SQL_PASSWORD"
+$envFile = Join-Path $ScriptDir '.env'
+$SaPassword = $null
+if (Test-Path $envFile) {
+    $passwordLine = Get-Content $envFile | Where-Object { $_ -match '^SQL_SERVER_SA_PASSWORD=' } | Select-Object -First 1
+    if ($passwordLine) { $SaPassword = ($passwordLine -split '=', 2)[1].Trim() }
+}
+if ([string]::IsNullOrWhiteSpace($SaPassword) -or $SaPassword -eq 'CHANGE_ME_SQL_PASSWORD') {
+    Write-Host '  [FAIL] SQL_SERVER_SA_PASSWORD is missing or still a placeholder in .env' -ForegroundColor Red
+    exit 1
+}
 $SqlHost    = "localhost"
 $SqlPort    = 1433
 $Database   = "FinOS"
+
+# Pass the same SQL credentials to every child service.
+$previousConnectionString = $env:ConnectionStrings__DefaultConnection
+$env:ConnectionStrings__DefaultConnection = "Server=localhost,1433;Database=$Database;User Id=sa;Password=$SaPassword;TrustServerCertificate=True;MultipleActiveResultSets=True"
 
 $Services = @(
     @{ Path = "APIGateways\FinOS.Gateway";                   Port = 8000; Name = "Gateway"       },
@@ -214,6 +227,7 @@ Write-Host "  [OK] $($startedServices.Count) service(s) launched" -ForegroundCol
 # Step 6: Start Vue Frontend
 # ============================================================================
 Write-Host ""
+$env:ConnectionStrings__DefaultConnection = $previousConnectionString
 Write-Host "--- Step 6/6: Starting Vue frontend ---" -ForegroundColor Yellow
 
 $frontendDir = Join-Path (Split-Path $ScriptDir -Parent) "FinOS.Frontend"
@@ -224,10 +238,14 @@ if (Test-Path $frontendDir) {
         npm install --silent 2>$null
     }
 
+    # Local Kestrel uses the gateway on port 8000; override the IIS .env value for this process only.
+    $previousViteApiBaseUrl = $env:VITE_API_BASE_URL
+    $env:VITE_API_BASE_URL = 'http://localhost:8000'
     Start-Process -FilePath "npm" `
         -ArgumentList "run","dev" `
         -WorkingDirectory $frontendDir `
         -WindowStyle Normal
+    if ($null -eq $previousViteApiBaseUrl) { Remove-Item Env:VITE_API_BASE_URL -ErrorAction SilentlyContinue } else { $env:VITE_API_BASE_URL = $previousViteApiBaseUrl }
 
     Pop-Location
     Write-Host "  [OK] Frontend started on http://localhost:5173" -ForegroundColor Green

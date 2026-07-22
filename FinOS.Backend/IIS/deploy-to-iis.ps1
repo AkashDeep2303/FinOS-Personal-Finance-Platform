@@ -36,7 +36,7 @@ if ([string]::IsNullOrWhiteSpace($JwtSecret)) {
 
 # Service Definitions
 $Services = @(
-    @{ Name = "Gateway";      Project = "FinOS.Gateway.API";      Port = 6000; Database = "" },
+    @{ Name = "Gateway";      Project = "FinOS.Gateway";      Port = 8080; Database = "" },
     @{ Name = "Identity";     Project = "FinOS.Identity.API";      Port = 5001; Database = "FinOS_Identity" },
     @{ Name = "CoreFinance";  Project = "FinOS.CoreFinance.API";   Port = 5002; Database = "FinOS_CoreFinance" },
     @{ Name = "Budget";       Project = "FinOS.Budget.API";        Port = 5003; Database = "FinOS_Budget" },
@@ -44,7 +44,7 @@ $Services = @(
     @{ Name = "Loan";         Project = "FinOS.Loan.API";          Port = 5005; Database = "FinOS_Loan" },
     @{ Name = "Goals";        Project = "FinOS.Goals.API";         Port = 5006; Database = "FinOS_Goals" },
     @{ Name = "Analytics";    Project = "FinOS.Analytics.API";     Port = 5007; Database = "FinOS_Analytics" },
-    @{ Name = "AI";           Project = "FinOS.AI.API";            Port = 5008; Database = "FinOS_AI" },
+    @{ Name = "AI";           Project = "FinOS.AIAssistant.API";            Port = 5008; Database = "FinOS_AI" },
     @{ Name = "Notification"; Project = "FinOS.Notification.API";  Port = 5009; Database = "FinOS_Notification" }
 )
 
@@ -145,18 +145,9 @@ foreach ($svc in $Services) {
     
     Write-Host "  [OK] Created site: $siteName on port $($svc.Port)" -ForegroundColor Green
     
-    # Configure URL ACL if needed (for non-admin ports)
-    try {
-        $existingAcl = netsh http show urlacl url=http://+:$($svc.Port)/ 2>&1
-        if ($existingAcl -notmatch "Reserved URL") {
-            Write-Host "    [INFO] Configuring URL ACL for port $($svc.Port)..." -ForegroundColor DarkYellow
-            netsh http add urlacl url=http://+:$($svc.Port)/ user="Everyone" 2>$null
-        }
-    } catch {
-        Write-Host "    [WARN] Could not configure URL ACL for port $($svc.Port)" -ForegroundColor DarkYellow
-    }
-    
-    # Configure firewall rule
+    # IIS owns the HTTP.sys binding for this site; a separate URL ACL is not required.
+    Write-Host "    [INFO] IIS binding owns port $($svc.Port); skipping URL ACL reservation" -ForegroundColor DarkGray
+        # Configure firewall rule
     $ruleName = "FinOS_$($svc.Name)_Port_$($svc.Port)"
     $existingRule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
     if (-NOT $existingRule) {
@@ -181,7 +172,7 @@ foreach ($svc in $Services) {
     $webConfigContent = @"
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
-  <location path="." inheritInInChildApplications="false">
+  <location path="." inheritInChildApplications="false">
     <system.webServer>
       <handlers>
         <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
@@ -200,7 +191,7 @@ $(if (-NOT [string]::IsNullOrWhiteSpace($serviceConnString)) {
           <environmentVariable name="JwtSettings__Secret" value="$JwtSecret" />
           <environmentVariable name="JwtSettings__Issuer" value="FinOS" />
           <environmentVariable name="JwtSettings__Audience" value="FinOS.Users" />
-          <environmentVariable name="GatewayUrl" value="http://localhost:6000" />
+          <environmentVariable name="GatewayUrl" value="http://localhost:8080" />
         </environmentVariables>
       </aspNetCore>
     </system.webServer>
@@ -256,8 +247,8 @@ foreach ($svc in $Services) {
     Write-Host "  $($svc.Name.PadRight(15)) : http://localhost:$($svc.Port)" -ForegroundColor Gray
 }
 Write-Host ""
-Write-Host "Gateway API: http://localhost:6000" -ForegroundColor Cyan
-Write-Host "Swagger UI:  http://localhost:6000/swagger" -ForegroundColor Cyan
+Write-Host "Gateway API: http://localhost:8080" -ForegroundColor Cyan
+Write-Host "Swagger UI:  http://localhost:8080/swagger" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "To check status: Get-Website | Where-Object { `$_.Name -like 'FinOS_*' } | Format-Table Name, State, Port" -ForegroundColor DarkGray
 Write-Host "To view logs: Check C:\FinOS\{ServiceName}\logs\" -ForegroundColor DarkGray

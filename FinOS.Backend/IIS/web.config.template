@@ -11,7 +11,7 @@
     
     Place this file in the root of each published service directory.
   -->
-  <location path="." inheritInInChildApplications="false">
+  <location path="." inheritInChildApplications="false">
     <system.webServer>
       <handlers>
         <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />

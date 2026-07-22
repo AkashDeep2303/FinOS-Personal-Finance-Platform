@@ -71,7 +71,7 @@ public class AccountRepository : IAccountRepository
             SELECT a.*, at.*
             FROM Core.Accounts a
             LEFT JOIN Core.AccountTypes at ON a.AccountTypeId = at.Id
-            WHERE a.UserId = @UserId
+            WHERE a.UserId = @UserId AND a.DeletedAt IS NULL
             ORDER BY a.Name";
         var result = await connection.QueryAsync<Account, AccountType, Account>(
             sql,
@@ -128,7 +128,6 @@ public class AccountRepository : IAccountRepository
         parameters.Add("@Icon", account.Icon);
         parameters.Add("@IsIncludedInNetWorth", account.IsIncludedInNetWorth);
         parameters.Add("@Notes", account.Notes);
-        parameters.Add("@IsActive", account.IsActive);
         parameters.Add("@NewAccountId", dbType: System.Data.DbType.Int64, direction: System.Data.ParameterDirection.Output);
 
         await connection.ExecuteAsync(sql, parameters, commandType: System.Data.CommandType.StoredProcedure);
@@ -144,6 +143,7 @@ public class AccountRepository : IAccountRepository
                 Name = @Name,
                 InstitutionName = @InstitutionName,
                 AccountNumber = @AccountNumber,
+                Balance = @Balance,
                 CreditLimit = @CreditLimit,
                 Currency = @Currency,
                 Color = @Color,
@@ -155,6 +155,7 @@ public class AccountRepository : IAccountRepository
                 LastSyncedAt = @LastSyncedAt,
                 Notes = @Notes,
                 IsActive = @IsActive,
+                DeletedAt = @DeletedAt,
                 UpdatedAt = @UpdatedAt
             WHERE Id = @Id AND DeletedAt IS NULL";
         await connection.ExecuteAsync(sql, account);

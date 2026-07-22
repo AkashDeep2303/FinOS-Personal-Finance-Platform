@@ -2,6 +2,9 @@
   <div class="space-y-6">
     <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
 
+    <div v-if="successMessage" class="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">{{ successMessage }}</div>
+    <div v-if="errorMessage" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ errorMessage }}</div>
+
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Profile Section -->
       <div class="lg:col-span-2 space-y-6">
@@ -18,8 +21,8 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                <input v-model="profile.email" type="email" required
-                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm" />
+                <input v-model="profile.email" type="email" readonly
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 text-sm" />
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
@@ -93,10 +96,10 @@
               <label class="block text-sm font-medium text-gray-700 mb-1">Currency</label>
               <select v-model="preferences.currency"
                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm bg-white">
-                <option value="INR">Ã¢â€šÂ¹ INR - Indian Rupee</option>
+                <option value="INR">&#8377; INR - Indian Rupee</option>
                 <option value="USD">$ USD - US Dollar</option>
-                <option value="EUR">Ã¢â€šÂ¬ EUR - Euro</option>
-                <option value="GBP">Ã‚Â£ GBP - British Pound</option>
+                <option value="EUR">&#8364; EUR - Euro</option>
+                <option value="GBP">&#163; GBP - British Pound</option>
               </select>
             </div>
             <div>
@@ -195,11 +198,11 @@
           <div class="p-6 space-y-3">
             <button @click="exportData"
               class="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">
-              Ã°Å¸â€œÂ¥ Export All Data
+              &#128228; Export All Data
             </button>
             <button @click="confirmDeleteAccount"
               class="w-full px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 text-sm font-medium">
-              Ã°Å¸â€”â€˜Ã¯Â¸Â Delete Account
+              &#128465;&#65039; Delete Account
             </button>
           </div>
         </div>
@@ -253,8 +256,13 @@ async function saveProfile() {
     await authStore.updateProfile({
       firstName,
       lastName: lastNameParts.join(' '),
-      phoneNumber: profile.phone || null
+      phoneNumber: profile.phone || null,
+      dateOfBirth: profile.dateOfBirth || null,
+      bio: profile.bio || null,
+      currency: preferences.currency,
+      timeZone: preferences.timezone,
     })
+    populateProfile()
     successMessage.value = 'Profile updated successfully!'
   } catch (err) {
     errorMessage.value = 'Failed to update profile'
@@ -294,15 +302,24 @@ function confirmDeleteAccount() {
   }
 }
 
-onMounted(() => {
-  if (authStore.user) {
-    Object.assign(profile, {
-      name: authStore.user.name || '',
-      email: authStore.user.email || '',
-      phone: authStore.user.phoneNumber || '',
-      dateOfBirth: authStore.user.dateOfBirth || '',
-      bio: authStore.user.bio || ''
-    })
-  }
+function populateProfile() {
+  const user = authStore.user
+  if (!user) return
+  Object.assign(profile, {
+    name: user.name || user.fullName || [user.firstName, user.lastName].filter(Boolean).join(' '),
+    email: user.email || '',
+    phone: user.phoneNumber || user.phone || '',
+    dateOfBirth: user.dateOfBirth ? String(user.dateOfBirth).slice(0, 10) : '',
+    bio: user.bio || ''
+  })
+  Object.assign(preferences, {
+    currency: user.currency || 'INR',
+    timezone: user.timeZone || user.timezone || 'Asia/Kolkata'
+  })
+}
+
+onMounted(async () => {
+  await authStore.fetchProfile()
+  populateProfile()
 })
 </script>

@@ -14,7 +14,8 @@ export const useInvestmentsStore = defineStore('investments', {
       returnsPercentage: 0
     },
     loading: false,
-    error: null
+    error: null,
+    activePortfolioId: null
   }),
 
   getters: {
@@ -57,17 +58,43 @@ export const useInvestmentsStore = defineStore('investments', {
       try {
         const userId = useAuthStore().user?.id
         if (!userId) throw new Error('No authenticated user is available')
-        const response = await investmentsApi.getAll(userId)
-        const data = response.data?.data ?? []
-        this.investments = Array.isArray(data) ? data : (data.investments ?? [])
-        this.portfolioSummary = data.summary ?? this.portfolioSummary
+
+        let response = await investmentsApi.getAll(userId)
+        let portfolios = Array.isArray(response.data?.data) ? response.data.data : []
+
+        if (portfolios.length === 0) {
+          const created = await investmentsApi.createPortfolio({
+            userId,
+            name: 'My Portfolio',
+            currency: 'INR',
+            isDefault: true
+          })
+          const portfolio = created.data?.data
+          if (portfolio?.id) portfolios = [{ id: portfolio.id, name: portfolio.name, isDefault: true }]
+        }
+
+        const portfolio = portfolios.find(p => p.isDefault) || portfolios[0]
+        this.activePortfolioId = portfolio?.id || null
+        if (!this.activePortfolioId) {
+          this.investments = []
+          return
+        }
+
+        const summaryResponse = await investmentsApi.getSummary(this.activePortfolioId)
+        const summary = summaryResponse.data?.data ?? {}
+        this.investments = Array.isArray(summary.topHoldings) ? summary.topHoldings : []
+        this.portfolioSummary = {
+          totalInvested: summary.totalInvested ?? 0,
+          currentValue: summary.currentValue ?? 0,
+          totalReturns: summary.totalReturn ?? 0,
+          returnsPercentage: summary.totalReturnPct ?? 0
+        }
       } catch (err) {
         this.error = err.response?.data?.message || err.message || 'Failed to fetch investments'
       } finally {
         this.loading = false
       }
     },
-
     async fetchSIPList() {
       this.loading = true
       try {
@@ -92,9 +119,37 @@ export const useInvestmentsStore = defineStore('investments', {
       this.loading = true
       this.error = null
       try {
-        const response = await investmentsApi.create(data)
-        this.investments.push(response.data)
-        return response.data
+        if (!this.activePortfolioId) await this.fetchInvestments()
+        if (!this.activePortfolioId) throw new Error('No investment portfolio is available')
+
+        const typeIds = {
+          'Mutual Fund': 1,
+          Stock: 2,
+          FD: 3,
+          Gold: 4,
+          Crypto: 5,
+          EPF: 6,
+          PPF: 7,
+          NPS: 8,
+          'Real Estate': 9,
+          Bond: 10
+        }
+        const investedAmount = Number(data.investedAmount) || 0
+        const currentValue = Number(data.currentValue) || investedAmount
+        const response = await investmentsApi.create({
+          portfolioId: this.activePortfolioId,
+          investmentTypeId: typeIds[data.type] || 1,
+          symbol: data.symbol || data.name,
+          name: data.name,
+          quantity: 1,
+          avgPurchasePrice: investedAmount,
+          currentPrice: currentValue,
+          fundHouse: data.fundHouse || null,
+          notes: data.investmentDate ? 'Investment date: ' + data.investmentDate : null
+        })
+        const created = response.data?.data ?? response.data
+        this.investments.push(created)
+        return created
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to create investment'
         throw err

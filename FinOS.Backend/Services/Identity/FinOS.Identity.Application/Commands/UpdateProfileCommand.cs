@@ -45,6 +45,12 @@ public class UpdateProfileCommandHandler : IRequestHandler<UpdateProfileCommand,
         if (request.PhoneNumber is not null)
             user.PhoneNumber = request.PhoneNumber.Trim();
 
+        if (request.DateOfBirth is not null)
+            user.DateOfBirth = request.DateOfBirth.Value.Date;
+
+        if (request.Bio is not null)
+            user.Bio = request.Bio.Trim();
+
         if (request.ProfileImageUrl is not null)
             user.ProfileImageUrl = request.ProfileImageUrl;
 
@@ -70,6 +76,8 @@ public class UpdateProfileCommandHandler : IRequestHandler<UpdateProfileCommand,
             LastName = user.LastName,
             FullName = user.FullName,
             PhoneNumber = user.PhoneNumber,
+            DateOfBirth = user.DateOfBirth,
+            Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
             EmailVerified = user.EmailVerified,
             PhoneVerified = user.PhoneVerified,
