@@ -1,47 +1,24 @@
+using System.Security.Claims;
+using FinOS.Common.Models;
 using FinOS.Investment.Application.Commands;
 using FinOS.Investment.Application.DTOs;
 using FinOS.Investment.Application.Queries;
-using FinOS.Common.Models;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FinOS.Investment.API.Controllers;
 
-[ApiController]
-[Route("api/[controller]")]
-[Authorize]
+[ApiController,Route("api/[controller]"),Authorize]
 public class EPFController : ControllerBase
 {
     private readonly IMediator _mediator;
+    public EPFController(IMediator mediator)=>_mediator=mediator;
+    private long UserId=>long.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??User.FindFirstValue("sub")??throw new UnauthorizedAccessException());
 
-    public EPFController(IMediator mediator) { _mediator = mediator; }
-
-    [HttpPost]
-    public async Task<ActionResult<ApiResponse<EPFAccountDto>>> CreateAccount([FromBody] CreateEPFAccountRequest request)
-    {
-        // Would need CreateEPFAccountCommand - using placeholder
-        return Ok(ApiResponse<EPFAccountDto>.Ok(null!, "EPF account creation endpoint"));
-    }
-
-    [HttpPost("contribution")]
-    public async Task<ActionResult<ApiResponse<EPFContributionDto>>> AddContribution([FromBody] UpdateEPFContributionRequest request)
-    {
-        var result = await _mediator.Send(new UpdateEPFContributionCommand(request));
-        return Ok(ApiResponse<EPFContributionDto>.Ok(result, "EPF contribution added successfully"));
-    }
-
-    [HttpGet("{epfAccountId}/statement")]
-    public async Task<ActionResult<ApiResponse<List<EPFContributionDto>>>> GetStatement(long epfAccountId)
-    {
-        var result = await _mediator.Send(new GetEPFStatementQuery(epfAccountId));
-        return Ok(ApiResponse<List<EPFContributionDto>>.Ok(result));
-    }
-
-    [HttpGet("{epfAccountId}/projection")]
-    public async Task<ActionResult<ApiResponse<EPFProjectionDto>>> GetProjection(long epfAccountId, [FromQuery] int? retirementAge = null, [FromQuery] int? currentAge = null)
-    {
-        var result = await _mediator.Send(new GetEPFProjectionQuery(epfAccountId, retirementAge, currentAge));
-        return Ok(ApiResponse<EPFProjectionDto>.Ok(result));
-    }
+    [HttpGet("me")] public async Task<ActionResult<ApiResponse<EPFTrackerDto?>>> Mine()=>Ok(ApiResponse<EPFTrackerDto?>.Ok(await _mediator.Send(new GetEPFTrackerQuery(UserId))));
+    [HttpPost] public async Task<ActionResult<ApiResponse<EPFTrackerDto>>> Create(CreateEPFAccountRequest request)=>Ok(ApiResponse<EPFTrackerDto>.Ok(await _mediator.Send(new CreateEPFAccountCommand(UserId,request)),"EPF account created"));
+    [HttpPost("{id:long}/contributions")] public async Task<ActionResult<ApiResponse<EPFContributionDto>>> Add(long id,AddEPFContributionRequest request)=>Ok(ApiResponse<EPFContributionDto>.Ok(await _mediator.Send(new AddEPFContributionCommand(UserId,id,request)),"Contribution added"));
+    [HttpGet("{id:long}/statement")] public async Task<ActionResult<ApiResponse<List<EPFContributionDto>>>> Statement(long id)=>Ok(ApiResponse<List<EPFContributionDto>>.Ok(await _mediator.Send(new GetEPFStatementQuery(id,UserId))));
+    [HttpGet("{id:long}/projection")] public async Task<ActionResult<ApiResponse<EPFProjectionDto>>> Projection(long id,[FromQuery]int? retirementAge,[FromQuery]int? currentAge)=>Ok(ApiResponse<EPFProjectionDto>.Ok(await _mediator.Send(new GetEPFProjectionQuery(id,UserId,retirementAge,currentAge))));
 }

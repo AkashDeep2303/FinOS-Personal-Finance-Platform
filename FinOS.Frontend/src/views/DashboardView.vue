@@ -279,7 +279,7 @@ onMounted(async () => {
     transactionsStore.fetchTransactions(),
     budgetsStore.fetchBudgets(),
     investmentsStore.fetchInvestments(),
-    investmentsStore.fetchSIPList(),
+    investmentsStore.fetchSIPs(),
     loansStore.fetchLoans(),
     goalsStore.fetchGoals()
   ])

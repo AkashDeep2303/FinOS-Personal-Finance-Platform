@@ -9,12 +9,14 @@ namespace FinOS.Investment.Application.Queries;
 public class GetEPFProjectionQuery : IRequest<EPFProjectionDto>
 {
     public long EPFAccountId { get; set; }
+    public long UserId { get; set; }
     public int? RetirementAge { get; set; }
     public int? CurrentAge { get; set; }
 
-    public GetEPFProjectionQuery(long epfAccountId, int? retirementAge = null, int? currentAge = null)
+    public GetEPFProjectionQuery(long epfAccountId, long userId, int? retirementAge = null, int? currentAge = null)
     {
         EPFAccountId = epfAccountId;
+        UserId = userId;
         RetirementAge = retirementAge ?? 60;
         CurrentAge = currentAge ?? 30;
     }
@@ -33,6 +35,7 @@ public class GetEPFProjectionQueryHandler : IRequestHandler<GetEPFProjectionQuer
     {
         var account = await _epfRepository.GetByIdAsync(query.EPFAccountId, ct)
             ?? throw new NotFoundException(nameof(Domain.Entities.EPFAccount), query.EPFAccountId);
+        if (account.UserId != query.UserId) throw new UnauthorizedAccessException();
 
         var yearsToRetirement = query.RetirementAge!.Value - query.CurrentAge!.Value;
         var monthlyContribution = account.MonthlySalary * (account.EmployeeContributionPct + account.EmployerContributionPct) / 100;

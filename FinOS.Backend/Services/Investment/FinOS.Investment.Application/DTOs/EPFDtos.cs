@@ -3,9 +3,7 @@ namespace FinOS.Investment.Application.DTOs;
 public class EPFAccountDto
 {
     public long Id { get; set; }
-    public long UserId { get; set; }
-    public string? UAN { get; set; }
-    public string? EstablishmentCode { get; set; }
+    public string? MaskedUAN { get; set; }
     public string? EmployerName { get; set; }
     public decimal EmployeeContributionPct { get; set; }
     public decimal EmployerContributionPct { get; set; }
@@ -17,9 +15,17 @@ public class EPFAccountDto
     public bool IsActive { get; set; }
 }
 
+public class EPFTrackerDto : EPFAccountDto
+{
+    public decimal EmployeeContribution { get; set; }
+    public decimal EmployerContribution { get; set; }
+    public decimal EPSContribution { get; set; }
+    public decimal InterestEarned { get; set; }
+    public List<EPFContributionDto> Contributions { get; set; } = new();
+}
+
 public class CreateEPFAccountRequest
 {
-    public long UserId { get; set; }
     public string? UAN { get; set; }
     public string? EstablishmentCode { get; set; }
     public string? EmployerName { get; set; }
@@ -34,6 +40,12 @@ public class CreateEPFAccountRequest
 public class UpdateEPFContributionRequest
 {
     public long EPFAccountId { get; set; }
+    public DateTime Month { get; set; }
+    public decimal MonthlySalary { get; set; }
+}
+
+public class AddEPFContributionRequest
+{
     public DateTime Month { get; set; }
     public decimal MonthlySalary { get; set; }
 }
