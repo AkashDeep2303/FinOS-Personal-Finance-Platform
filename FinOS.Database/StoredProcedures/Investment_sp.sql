@@ -306,7 +306,10 @@ BEGIN
             END
 
             DECLARE @SellQty       DECIMAL(18,4) = @HoldQty - @Quantity;
-            DECLARE @SellInvested  DECIMAL(18,2) = @SellQty * (SELECT AvgPurchasePrice FROM Investment.Holdings WHERE Id = @HoldingId);
+            DECLARE @SellAvgPrice  DECIMAL(18,4) = (SELECT AvgPurchasePrice FROM Investment.Holdings WHERE Id = @HoldingId);
+            DECLARE @SellInvested  DECIMAL(18,2) = @SellQty * @SellAvgPrice;
+            DECLARE @DisposedCostBasis DECIMAL(18,2) = @Quantity * @SellAvgPrice;
+            DECLARE @RealizedGain DECIMAL(18,2) = @TotalAmount - @Charges - @STT - @StampDuty - @DisposedCostBasis;
             DECLARE @SellPrice     DECIMAL(18,4);
             SELECT @SellPrice = ISNULL(CurrentPrice, @PricePerUnit)
             FROM Investment.Holdings WHERE Id = @HoldingId;
@@ -329,6 +332,10 @@ BEGIN
                 IsActive       = CASE WHEN @SellQty = 0 THEN 0 ELSE 1 END,
                 UpdatedAt      = SYSUTCDATETIME()
             WHERE Id = @HoldingId;
+
+            UPDATE Investment.Transactions
+            SET CostBasis = @DisposedCostBasis, RealizedGain = @RealizedGain
+            WHERE Id = @NewTransactionId;
 
             -- Credit source account
             IF @SourceAccount IS NOT NULL
@@ -1111,6 +1118,41 @@ END;
 GO
 
 PRINT 'Investment stored procedures created successfully.';
+GO
+
+IF OBJECT_ID(N'Investment.sp_CapturePortfolioValueSnapshots', N'P') IS NOT NULL
+    DROP PROCEDURE Investment.sp_CapturePortfolioValueSnapshots;
+GO
+CREATE PROCEDURE Investment.sp_CapturePortfolioValueSnapshots
+    @UserId BIGINT = NULL,
+    @SnapshotDate DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET @SnapshotDate = ISNULL(@SnapshotDate, CAST(SYSUTCDATETIME() AS DATE));
+
+    MERGE Investment.PortfolioValueSnapshots AS target
+    USING
+    (
+        SELECT p.Id PortfolioId, @SnapshotDate SnapshotDate,
+               ISNULL(SUM(CASE WHEN h.DeletedAt IS NULL THEN h.InvestedAmount ELSE 0 END),0) InvestedValue,
+               ISNULL(SUM(CASE WHEN h.DeletedAt IS NULL THEN h.CurrentValue ELSE 0 END),0) CurrentValue
+        FROM Investment.Portfolios p
+        LEFT JOIN Investment.Holdings h ON h.PortfolioId=p.Id
+        WHERE p.DeletedAt IS NULL AND (@UserId IS NULL OR p.UserId=@UserId)
+        GROUP BY p.Id
+    ) source
+    ON target.PortfolioId=source.PortfolioId AND target.SnapshotDate=source.SnapshotDate
+    WHEN MATCHED THEN UPDATE SET
+        InvestedValue=source.InvestedValue,
+        CurrentValue=source.CurrentValue,
+        UnrealizedGain=source.CurrentValue-source.InvestedValue,
+        CreatedAt=SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (PortfolioId, SnapshotDate, InvestedValue, CurrentValue, UnrealizedGain)
+        VALUES (source.PortfolioId, source.SnapshotDate, source.InvestedValue, source.CurrentValue,
+                source.CurrentValue-source.InvestedValue);
+END
 GO
 
 

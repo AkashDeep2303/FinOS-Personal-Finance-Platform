@@ -8,6 +8,10 @@ public interface ILoanRepository : IRepository<Domain.Entities.Loan>
     Task<Domain.Entities.Loan?> GetWithScheduleAsync(long loanId, CancellationToken ct = default);
     Task<Domain.Entities.Loan?> GetWithPrepaymentsAsync(long loanId, CancellationToken ct = default);
     Task<List<Domain.Entities.Loan>> GetActiveByUserIdAsync(long userId, CancellationToken ct = default);
+    Task<Domain.Results.DebtOverviewResult> GetDebtOverviewAsync(long userId, CancellationToken ct = default);
+    Task<List<Domain.Results.LoanRateHistoryResult>> GetRateHistoryAsync(long loanId, CancellationToken ct = default);
+    Task AddRateChangeAsync(long loanId, decimal newRate, DateTime effectiveDate, string? reason, CancellationToken ct = default);
+    Task<Domain.Results.LoanPaymentAnalysisResult> GetPaymentAnalysisAsync(long loanId, CancellationToken ct = default);
 
     /// <summary>
     /// Creates a new loan using the Loan.sp_CreateLoan stored procedure.

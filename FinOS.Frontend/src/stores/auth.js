@@ -61,6 +61,7 @@ export const useAuthStore = defineStore('auth', {
     user: null,
     token: localStorage.getItem('finos_token') || null,
     refreshToken: localStorage.getItem('finos_refresh_token') || null,
+    sessions: [],
     loading: false,
     error: null
   }),
@@ -77,6 +78,8 @@ export const useAuthStore = defineStore('auth', {
       this.error = null
       try {
         const response = await authApi.login(credentials)
+        const inner = response?.data?.data ?? response?.data ?? {}
+        if (inner.twoFactorRequired) return { twoFactorRequired: true }
         const { accessToken, refreshToken, user } = _applyAuthResponse(response)
 
         this.token = accessToken
@@ -88,6 +91,7 @@ export const useAuthStore = defineStore('auth', {
 
         const redirect = router.currentRoute.value.query.redirect || '/dashboard'
         router.push(redirect)
+        return { twoFactorRequired: false }
       } catch (err) {
         const body = err?.response?.data
         this.error = body?.message || body?.errors?.[Object.keys(body?.errors ?? {})[0]]?.[0] || 'Login failed. Please try again.'
@@ -177,7 +181,23 @@ export const useAuthStore = defineStore('auth', {
     async changePassword(passwordData) {
       await authApi.changePassword(passwordData)
     },
-    logout() {
+    async fetchSessions() {
+      const response = await authApi.getSessions()
+      this.sessions = response?.data?.data ?? []
+    },
+    async revokeSession(sessionId) {
+      await authApi.revokeSession(sessionId)
+      this.sessions = this.sessions.filter((session) => session.id !== sessionId)
+    },
+    async revokeOtherSessions() {
+      await authApi.revokeOtherSessions()
+      this.sessions = this.sessions.filter((session) => session.isCurrent)
+    },
+    async logout(revokeRefreshToken = true) {
+      const tokenToRevoke = this.refreshToken
+      if (revokeRefreshToken && tokenToRevoke) {
+        try { await authApi.logout(tokenToRevoke) } catch { /* local logout still proceeds */ }
+      }
       this.user = null
       this.token = null
       this.refreshToken = null

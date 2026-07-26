@@ -18,6 +18,11 @@ export const useLoansStore = defineStore('loans', {
     currentLoan: null,
     emiSchedule: [],
     prepaymentResult: null,
+    strategyComparison: null,
+    debtOverview: null,
+    paymentAnalysis: null,
+    rateHistory: [],
+    prepaymentHistory: [],
     loading: false,
     error: null
   }),
@@ -55,6 +60,31 @@ export const useLoansStore = defineStore('loans', {
   },
 
   actions: {
+    async fetchDebtOverview() {
+      try {
+        const response = await loansApi.getDebtOverview()
+        this.debtOverview = response.data?.data ?? null
+        return this.debtOverview
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to load debt overview'
+        throw err
+      }
+    },
+
+    async compareStrategy(input) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await loansApi.compareStrategy(input)
+        this.strategyComparison = response.data?.data ?? null
+        return this.strategyComparison
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to compare loan strategies'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
     async fetchLoans() {
       this.loading = true
       this.error = null
@@ -99,6 +129,21 @@ export const useLoansStore = defineStore('loans', {
         this.loading = false
       }
     },
+    async fetchLoanAnalysis(loanId) {
+      const [analysis, rates, prepayments] = await Promise.all([
+        loansApi.getPaymentAnalysis(loanId),
+        loansApi.getRateHistory(loanId),
+        loansApi.getPrepaymentHistory(loanId)
+      ])
+      this.paymentAnalysis = analysis.data?.data ?? null
+      this.rateHistory = rates.data?.data ?? []
+      this.prepaymentHistory = prepayments.data?.data ?? []
+      return this.paymentAnalysis
+    },
+    async addRateChange(loanId, data) {
+      await loansApi.addRateChange(loanId, data)
+      await Promise.all([this.fetchLoans(), this.fetchLoanAnalysis(loanId)])
+    },
 
     async calculatePrepayment(loanId, prepaymentData) {
       this.loading = true
@@ -122,7 +167,6 @@ export const useLoansStore = defineStore('loans', {
         const loanTypeIds = { 'Home Loan': 1, 'Car Loan': 2, 'Personal Loan': 3, 'Education Loan': 4, 'Gold Loan': 6, 'Business Loan': 8 }
         const startDate = loanData.startDate
         const response = await loansApi.create({
-          userId: currentUserId(),
           loanTypeId: loanTypeIds[loanData.type] ?? 1,
           accountId: loanData.accountId,
           lenderName: loanData.lender || loanData.name,
@@ -148,30 +192,14 @@ export const useLoansStore = defineStore('loans', {
       }
     },
 
-    async updateLoan(id, loanData) {
+    async closeLoan(id) {
       this.loading = true
       this.error = null
       try {
-        const response = await loansApi.update(id, loanData)
-        const index = this.loans.findIndex(l => l.id === id)
-        if (index !== -1) this.loans[index] = response.data
-        return response.data
+        await loansApi.close(id)
+        await this.fetchLoans()
       } catch (err) {
-        this.error = err.response?.data?.message || 'Failed to update loan'
-        throw err
-      } finally {
-        this.loading = false
-      }
-    },
-
-    async deleteLoan(id) {
-      this.loading = true
-      this.error = null
-      try {
-        await loansApi.delete(id)
-        this.loans = this.loans.filter(l => l.id !== id)
-      } catch (err) {
-        this.error = err.response?.data?.message || 'Failed to delete loan'
+        this.error = err.response?.data?.message || 'Failed to close loan'
         throw err
       } finally {
         this.loading = false

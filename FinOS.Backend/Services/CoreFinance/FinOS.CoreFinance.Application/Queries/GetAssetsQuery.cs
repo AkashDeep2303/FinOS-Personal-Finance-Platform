@@ -1,0 +1,2 @@
+using FinOS.CoreFinance.Domain.Entities;using FinOS.CoreFinance.Domain.Interfaces;using MediatR;namespace FinOS.CoreFinance.Application.Queries;
+public record GetAssetsQuery(long UserId):IRequest<IReadOnlyList<Asset>>;public class GetAssetsHandler(IAssetRepository r):IRequestHandler<GetAssetsQuery,IReadOnlyList<Asset>>{public Task<IReadOnlyList<Asset>>Handle(GetAssetsQuery q,CancellationToken ct)=>r.GetAsync(q.UserId,ct);}

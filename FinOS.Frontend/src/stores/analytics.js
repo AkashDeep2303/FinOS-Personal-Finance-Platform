@@ -14,8 +14,16 @@ export const useAnalyticsStore = defineStore('analytics', {
       grade: '',
       factors: []
     },
+    financialScoreHistory: [],
     monthlySummary: [],
     spendingTrends: [],
+    commandCenter: null,
+    cashFlow: null,
+    retirementProjection: null,
+    calculatorResult: null,
+    scenarioResult: null,
+    savedScenarios: [],
+    advisorOpportunities: [],
     loading: false,
     error: null
   }),
@@ -44,6 +52,111 @@ export const useAnalyticsStore = defineStore('analytics', {
   },
 
   actions: {
+    async fetchCashFlow(params = {}) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await analyticsApi.getCashFlow(params)
+        this.cashFlow = response.data?.data ?? null
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to load cash-flow analytics'
+      } finally {
+        this.loading = false
+      }
+    },
+    async fetchAdvisorOpportunities() {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await analyticsApi.getAdvisorOpportunities()
+        this.advisorOpportunities = response.data?.data ?? []
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to load FinOS Advisor'
+      } finally {
+        this.loading = false
+      }
+    },
+    async calculateFinancialTool(input) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await analyticsApi.calculateFinancialTool(input)
+        this.calculatorResult = response.data?.data ?? null
+        return this.calculatorResult
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Calculation failed'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
+    async calculateXirr(input) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await analyticsApi.calculateXirr(input)
+        this.calculatorResult = response.data?.data ?? null
+        return this.calculatorResult
+      } catch (err) {
+        this.error = err.response?.data?.message || 'XIRR calculation failed'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
+    async calculateScenario(input) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await analyticsApi.calculateScenario(input)
+        this.scenarioResult = response.data?.data ?? null
+        return this.scenarioResult
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Scenario calculation failed'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
+    async fetchSavedScenarios() {
+      const response = await analyticsApi.getSavedScenarios()
+      this.savedScenarios = response.data?.data ?? []
+    },
+    async saveScenario(name, input) {
+      const response = await analyticsApi.saveScenario({ name, scenario: input })
+      await this.fetchSavedScenarios()
+      return response.data?.data
+    },
+    async deleteScenario(id) {
+      await analyticsApi.deleteScenario(id)
+      this.savedScenarios = this.savedScenarios.filter(item => item.id !== id)
+    },
+    async projectRetirement(input) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await analyticsApi.projectRetirement(input)
+        this.retirementProjection = response.data?.data ?? null
+        return this.retirementProjection
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to calculate retirement projection'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
+    async fetchCommandCenter() {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await analyticsApi.getCommandCenter()
+        this.commandCenter = response.data?.data ?? null
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to fetch command center'
+      } finally {
+        this.loading = false
+      }
+    },
     async fetchDashboardData() {
       this.loading = true
       this.error = null
@@ -107,8 +220,20 @@ export const useAnalyticsStore = defineStore('analytics', {
         const response = await analyticsApi.getFinancialScore()
         const history = responseArray(response)
         const latest = history.at(-1)
+        this.financialScoreHistory = history
         this.financialScore = latest
-          ? { score: latest.overallScore, grade: latest.scoreGrade, factors: [] }
+          ? {
+              ...latest,
+              score: latest.overallScore,
+              grade: latest.scoreGrade,
+              factors: [
+                { name: 'Savings Rate', score: latest.savingsRateScore, value: latest.savingsRatePct },
+                { name: 'Debt Management', score: latest.debtToIncomeScore, value: latest.debtToIncomeRatio },
+                { name: 'Emergency Fund', score: latest.emergencyFundScore, value: latest.emergencyFundMonths },
+                { name: 'Investments', score: latest.investmentScore, value: latest.investmentToIncomeRatio },
+                { name: 'Goals', score: latest.goalProgressScore, value: null }
+              ]
+            }
           : { score: 0, grade: '', factors: [] }
       } catch (err) {
         this.error = err.response?.data?.message || 'Failed to fetch financial score'

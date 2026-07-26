@@ -321,10 +321,43 @@ BEGIN
 END
 ',
     @database_name      = N'FinOS',
-    @on_success_action  = 1,   -- Quit with success
+    @on_success_action  = 3,   -- Go to next step
     @on_fail_action     = 2,   -- Quit with failure
     @retry_attempts     = 0,
     @retry_interval     = 0;
+GO
+
+-- ---------------------------------------------------------------------------
+-- Step 5: Capture Investment Portfolio Values
+-- ---------------------------------------------------------------------------
+EXEC msdb.dbo.sp_add_jobstep
+    @job_name   = N'FinOS_DailyAnalytics',
+    @step_name  = N'Capture Portfolio Values',
+    @step_id    = 5,
+    @subsystem  = N'TSQL',
+    @command    = N'
+DECLARE @LogId BIGINT;
+EXEC dbo.sp_LogJobExecution
+    @JobName=N''FinOS_DailyAnalytics'',
+    @StepName=N''Capture Portfolio Values'',
+    @Status=N''Running'',
+    @LogId=@LogId OUTPUT;
+BEGIN TRY
+    EXEC Investment.sp_CapturePortfolioValueSnapshots;
+    EXEC dbo.sp_UpdateJobExecutionLog
+        @LogId=@LogId,@EndTime=SYSUTCDATETIME(),@Status=N''Succeeded'',@RowsAffected=@@ROWCOUNT;
+END TRY
+BEGIN CATCH
+    DECLARE @ErrMsg NVARCHAR(4000)=ERROR_MESSAGE();
+    EXEC dbo.sp_UpdateJobExecutionLog
+        @LogId=@LogId,@EndTime=SYSUTCDATETIME(),@Status=N''Failed'',@ErrorMessage=@ErrMsg;
+    RAISERROR(@ErrMsg,16,1);
+END CATCH;',
+    @database_name=N'FinOS',
+    @on_success_action=1,
+    @on_fail_action=2,
+    @retry_attempts=1,
+    @retry_interval=5;
 GO
 
 -- ---------------------------------------------------------------------------
@@ -352,5 +385,5 @@ GO
 
 PRINT 'SQL Agent Job [FinOS_DailyAnalytics] created successfully.';
 PRINT 'Schedule: Daily at 2:00 AM IST (20:30 UTC)';
-PRINT 'Steps: 1) Net Worth Snapshots, 2) Monthly Aggregates, 3) Budget Alerts, 4) Subscription Detection (Sundays)';
+PRINT 'Steps: 1) Net Worth Snapshots, 2) Monthly Aggregates, 3) Budget Alerts, 4) Subscription Detection (Sundays), 5) Portfolio Value Snapshots';
 GO

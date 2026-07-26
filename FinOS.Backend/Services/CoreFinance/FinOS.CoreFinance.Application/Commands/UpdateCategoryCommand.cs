@@ -39,6 +39,7 @@ public class UpdateCategoryCommandHandler : IRequestHandler<UpdateCategoryComman
         category.BudgetAmount = command.Request.BudgetAmount;
         category.IsActive = command.Request.IsActive;
         category.SortOrder = command.Request.SortOrder;
+        category.CashFlowClassification = command.Request.CashFlowClassification;
         category.UpdatedAt = DateTime.UtcNow;
 
         await _categoryRepository.UpdateAsync(category);
@@ -57,6 +58,7 @@ public class UpdateCategoryCommandHandler : IRequestHandler<UpdateCategoryComman
             IsSystem = category.IsSystem,
             IsActive = category.IsActive,
             SortOrder = category.SortOrder,
+            CashFlowClassification = category.CashFlowClassification,
             CreatedAt = category.CreatedAt
         };
     }

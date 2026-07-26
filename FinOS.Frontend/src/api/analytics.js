@@ -1,30 +1,45 @@
 import api from './axios'
-import { useAuthStore } from '../stores/auth'
-
-function tokenUserId() {
-  try {
-    const token = localStorage.getItem('finos_token')
-    if (!token) return undefined
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-    return Number(payload.sub) || undefined
-  } catch {
-    return undefined
-  }
-}
 
 function query(params = {}) {
   const months = Number.parseInt(String(params.range || params.months || '6'), 10) || 6
-  const user = useAuthStore().user
-  const userId = user?.id ?? user?.userId ?? tokenUserId()
   return {
     ...params,
-    userId,
     months,
     yearMonth: params.yearMonth || Number(new Date().toISOString().slice(0, 7).replace('-', ''))
   }
 }
 
 export const analyticsApi = {
+  getCommandCenter() {
+    return api.get('/api/analytics/command-center')
+  },
+  getCashFlow(params = {}) {
+    return api.get('/api/analytics/cash-flow', { params })
+  },
+  getAdvisorOpportunities() {
+    return api.get('/api/analytics/advisor/opportunities')
+  },
+  projectRetirement(data) {
+    return api.post('/api/analytics/retirement/project', data)
+  },
+  calculateFinancialTool(data) {
+    return api.post('/api/analytics/decision-tools/calculate', data)
+  },
+  calculateXirr(data) {
+    return api.post('/api/analytics/decision-tools/xirr', data)
+  },
+  calculateScenario(data) {
+    return api.post('/api/analytics/decision-tools/scenario', data)
+  },
+  getSavedScenarios() {
+    return api.get('/api/analytics/decision-tools/scenarios')
+  },
+  saveScenario(data) {
+    return api.post('/api/analytics/decision-tools/scenarios', data)
+  },
+  deleteScenario(id) {
+    return api.delete(`/api/analytics/decision-tools/scenarios/${id}`)
+  },
   getDashboard() {
     return api.get('/api/analytics/monthlyaggregates', { params: query() })
   },

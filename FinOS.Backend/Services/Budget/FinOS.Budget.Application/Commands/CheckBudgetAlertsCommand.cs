@@ -3,15 +3,18 @@ using FinOS.Budget.Domain.Enums;
 using FinOS.Budget.Domain.Interfaces;
 using FinOS.Common.Interfaces;
 using MediatR;
+using FinOS.Budget.Application.Services;
 
 namespace FinOS.Budget.Application.Commands;
 
 public class CheckBudgetAlertsCommand : IRequest<List<BudgetAlert>>
 {
+    public long UserId { get; set; }
     public long BudgetId { get; set; }
 
-    public CheckBudgetAlertsCommand(long budgetId)
+    public CheckBudgetAlertsCommand(long userId, long budgetId)
     {
+        UserId = userId;
         BudgetId = budgetId;
     }
 }
@@ -27,8 +30,8 @@ public class CheckBudgetAlertsCommandHandler : IRequestHandler<CheckBudgetAlerts
 
     public async Task<List<BudgetAlert>> Handle(CheckBudgetAlertsCommand command, CancellationToken ct)
     {
-        var budget = await _budgetRepository.GetWithCategoriesAsync(command.BudgetId, ct);
-        if (budget == null) return new List<BudgetAlert>();
+        var budget = await BudgetOwnership.GetOwnedAsync(
+            _budgetRepository, command.BudgetId, command.UserId, ct, includeCategories: true);
 
         // Call the stored procedure to check and create alerts
         await _budgetRepository.CheckBudgetAlertsAsync(budget.UserId, ct: ct);

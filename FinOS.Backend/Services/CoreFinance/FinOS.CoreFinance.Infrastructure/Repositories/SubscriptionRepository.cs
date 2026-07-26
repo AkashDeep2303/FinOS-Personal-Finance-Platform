@@ -1,4 +1,5 @@
 using Dapper;
+using System.Data;
 using FinOS.Common.Interfaces;
 using FinOS.Common.Models;
 using FinOS.CoreFinance.Domain.Entities;
@@ -20,7 +21,7 @@ public class SubscriptionRepository : ISubscriptionRepository
         using var connection = _connectionFactory.CreateConnection();
         var sql = @"
             SELECT ds.*, c.*, t.*
-            FROM Core.DetectedSubscriptions ds
+            FROM Subscriptions.DetectedSubscriptions ds
             LEFT JOIN Core.Categories c ON ds.CategoryId = c.Id
             LEFT JOIN Core.Transactions t ON ds.LastTransactionId = t.Id
             WHERE ds.Id = @Id";
@@ -57,7 +58,7 @@ public class SubscriptionRepository : ISubscriptionRepository
     {
         using var connection = _connectionFactory.CreateConnection();
         var result = await connection.QueryAsync<DetectedSubscription>(
-            "SELECT * FROM Core.DetectedSubscriptions WHERE UserId = @UserId ORDER BY DetectionConfidence DESC",
+            "SELECT * FROM Subscriptions.DetectedSubscriptions WHERE UserId = @UserId ORDER BY DetectionConfidence DESC",
             new { UserId = userId });
         return result.ToList();
     }
@@ -65,7 +66,7 @@ public class SubscriptionRepository : ISubscriptionRepository
     public async Task<DetectedSubscription> AddAsync(DetectedSubscription entity, CancellationToken ct = default)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var sql = @"INSERT INTO Core.DetectedSubscriptions (UserId, CategoryId, LastTransactionId, MerchantName, Amount, Currency, Frequency, NextExpectedDate, LastTransactionDate, DetectionConfidence, TransactionCount, IsConfirmed, IsActive, CreatedAt, UpdatedAt)
+        var sql = @"INSERT INTO Subscriptions.DetectedSubscriptions (UserId, CategoryId, LastTransactionId, MerchantName, Amount, Currency, Frequency, NextExpectedDate, LastTransactionDate, DetectionConfidence, TransactionCount, IsConfirmed, IsActive, CreatedAt, UpdatedAt)
             VALUES (@UserId, @CategoryId, @LastTransactionId, @MerchantName, @Amount, @Currency, @Frequency, @NextExpectedDate, @LastTransactionDate, @DetectionConfidence, @TransactionCount, @IsConfirmed, @IsActive, @CreatedAt, @UpdatedAt);
             SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
         var id = await connection.ExecuteScalarAsync<long>(sql, entity);
@@ -73,12 +74,25 @@ public class SubscriptionRepository : ISubscriptionRepository
         return entity;
     }
 
-    public Task UpdateAsync(DetectedSubscription entity, CancellationToken ct = default) => Task.CompletedTask;
+    public async Task UpdateAsync(DetectedSubscription entity, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"UPDATE Subscriptions.DetectedSubscriptions
+              SET CategoryId = @CategoryId, IsConfirmed = @IsConfirmed, IsActive = @IsActive, UpdatedAt = @UpdatedAt
+              WHERE Id = @Id AND UserId = @UserId",
+            entity, cancellationToken: ct));
+    }
     public Task RemoveAsync(DetectedSubscription entity, CancellationToken ct = default) => Task.CompletedTask;
 
     public async Task<List<DetectedSubscription>> DetectSubscriptionsAsync(long userId, CancellationToken ct = default)
     {
-        // Placeholder: subscription detection logic would go here
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(new CommandDefinition(
+            "Core.sp_DetectSubscriptions",
+            new { UserId = userId },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: ct));
         return await GetByUserIdAsync(userId, ct);
     }
 }

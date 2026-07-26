@@ -54,7 +54,8 @@ public class CategoriesController : ControllerBase
             Icon = c.Icon,
             Color = c.Color,
             IsSystem = c.IsSystem,
-            SortOrder = c.SortOrder
+            SortOrder = c.SortOrder,
+            CashFlowClassification = c.CashFlowClassification
         }).ToList();
         return ApiResponse<List<CategoryDto>>.Ok(dtos);
     }

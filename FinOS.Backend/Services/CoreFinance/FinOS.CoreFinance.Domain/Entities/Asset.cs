@@ -1,0 +1,2 @@
+namespace FinOS.CoreFinance.Domain.Entities;
+public class Asset{public long Id{get;set;}public long UserId{get;set;}public string AssetType{get;set;}="Other";public string Name{get;set;}="";public decimal? PurchaseValue{get;set;}public DateTime? PurchaseDate{get;set;}public decimal CurrentEstimatedValue{get;set;}public DateTime ValuationDate{get;set;}public long? AssociatedLoanId{get;set;}public string? Notes{get;set;}}

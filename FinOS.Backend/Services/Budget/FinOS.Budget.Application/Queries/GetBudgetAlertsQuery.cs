@@ -1,16 +1,19 @@
 using FinOS.Budget.Application.DTOs;
 using FinOS.Budget.Domain.Interfaces;
 using MediatR;
+using FinOS.Budget.Application.Services;
 
 namespace FinOS.Budget.Application.Queries;
 
 public class GetBudgetAlertsQuery : IRequest<List<BudgetAlertDto>>
 {
+    public long UserId { get; set; }
     public long BudgetId { get; set; }
     public bool? UnreadOnly { get; set; }
 
-    public GetBudgetAlertsQuery(long budgetId, bool? unreadOnly = null)
+    public GetBudgetAlertsQuery(long userId, long budgetId, bool? unreadOnly = null)
     {
+        UserId = userId;
         BudgetId = budgetId;
         UnreadOnly = unreadOnly;
     }
@@ -27,8 +30,8 @@ public class GetBudgetAlertsQueryHandler : IRequestHandler<GetBudgetAlertsQuery,
 
     public async Task<List<BudgetAlertDto>> Handle(GetBudgetAlertsQuery query, CancellationToken ct)
     {
-        var budget = await _budgetRepository.GetWithCategoriesAsync(query.BudgetId, ct);
-        if (budget == null) return new List<BudgetAlertDto>();
+        var budget = await BudgetOwnership.GetOwnedAsync(
+            _budgetRepository, query.BudgetId, query.UserId, ct, includeCategories: true);
 
         var alerts = budget.Categories
             .SelectMany(c => c.Alerts)

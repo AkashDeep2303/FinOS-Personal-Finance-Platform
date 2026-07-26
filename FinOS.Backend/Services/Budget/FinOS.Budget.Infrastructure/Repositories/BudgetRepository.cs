@@ -210,7 +210,7 @@ public class BudgetRepository : IBudgetRepository
         });
     }
 
-    public async Task ReplaceCategoriesAsync(long budgetId, List<BudgetCategory> categories, CancellationToken ct = default)
+    public async Task ReplaceCategoriesAsync(long budgetId, long userId, List<BudgetCategory> categories, CancellationToken ct = default)
     {
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
         using var transaction = await connection.BeginTransactionAsync();
@@ -218,6 +218,27 @@ public class BudgetRepository : IBudgetRepository
         try
         {
             var now = DateTime.UtcNow;
+            var ownsBudget = await connection.ExecuteScalarAsync<int>(
+                """
+                SELECT COUNT(1) FROM Budget.Budgets
+                WHERE Id = @budgetId AND UserId = @userId AND DeletedAt IS NULL;
+                """, new { budgetId, userId }, transaction: transaction);
+            if (ownsBudget != 1)
+                throw new InvalidOperationException("Budget was not found.");
+
+            var categoryIds = categories.Where(x => x.CategoryId > 0)
+                .Select(x => x.CategoryId).Distinct().ToArray();
+            if (categoryIds.Length > 0)
+            {
+                var validCategoryCount = await connection.ExecuteScalarAsync<int>(
+                    """
+                    SELECT COUNT(1) FROM Core.Categories
+                    WHERE Id IN @categoryIds AND IsActive = 1
+                      AND (IsSystem = 1 OR UserId = @userId);
+                    """, new { categoryIds, userId }, transaction: transaction);
+                if (validCategoryCount != categoryIds.Length)
+                    throw new InvalidOperationException("One or more budget categories are unavailable.");
+            }
 
             // Delete existing categories
             await connection.ExecuteAsync(

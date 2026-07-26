@@ -24,19 +24,22 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, AuthRespo
     private readonly ITokenService _tokenService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IEventBus _eventBus;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
 
     public RegisterCommandHandler(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
         IUnitOfWork unitOfWork,
-        IEventBus eventBus)
+        IEventBus eventBus,
+        IRefreshTokenRepository refreshTokenRepository)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _unitOfWork = unitOfWork;
         _eventBus = eventBus;
+        _refreshTokenRepository = refreshTokenRepository;
     }
 
     public async Task<AuthResponse> Handle(RegisterCommand command, CancellationToken ct)
@@ -100,8 +103,7 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, AuthRespo
             CreatedAt = DateTime.UtcNow
         };
 
-        user.RefreshTokens.Add(refreshToken);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _refreshTokenRepository.CreateAsync(refreshToken, command.IpAddress, ct);
 
         // Publish user registered event
         try

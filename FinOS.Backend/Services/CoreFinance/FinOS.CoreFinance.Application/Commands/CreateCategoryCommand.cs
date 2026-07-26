@@ -30,6 +30,15 @@ public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryComman
         if (!Enum.TryParse<CategoryType>(command.Request.Type, true, out var categoryType))
             throw new DomainException("INVALID_TYPE", $"Invalid category type: {command.Request.Type}");
 
+        if (command.Request.ParentId.HasValue)
+        {
+            var parent = await _categoryRepository.GetByIdAsync(command.Request.ParentId.Value, ct);
+            if (parent is null || (!parent.IsSystem && parent.UserId != command.UserId))
+                throw new NotFoundException("Category", command.Request.ParentId.Value);
+            if (parent.Type != categoryType)
+                throw new DomainException("INVALID_PARENT", "Parent and child categories must have the same type.");
+        }
+
         var category = new Category
         {
             UserId = command.UserId,
@@ -42,6 +51,7 @@ public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryComman
             IsSystem = false,
             IsActive = true,
             SortOrder = command.Request.SortOrder,
+            CashFlowClassification = command.Request.CashFlowClassification,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -62,6 +72,7 @@ public class CreateCategoryCommandHandler : IRequestHandler<CreateCategoryComman
             IsSystem = category.IsSystem,
             IsActive = category.IsActive,
             SortOrder = category.SortOrder,
+            CashFlowClassification = category.CashFlowClassification,
             CreatedAt = category.CreatedAt
         };
     }

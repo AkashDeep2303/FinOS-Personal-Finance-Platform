@@ -13,7 +13,7 @@
       <!-- Messages Area -->
       <div ref="messagesContainer" class="flex-1 overflow-y-auto p-6 space-y-4">
         <!-- Welcome Message -->
-        <div v-if="messages.length === 0" class="text-center py-12">
+        <div v-if="!isLoading && messages.length === 0" class="text-center py-12">
           <p class="text-5xl mb-4">🤖</p>
           <h3 class="text-lg font-semibold text-gray-900 mb-2">FinOS AI Assistant</h3>
           <p class="text-gray-500 mb-6 max-w-md mx-auto">
@@ -26,6 +26,10 @@
               {{ suggestion }}
             </button>
           </div>
+        </div>
+
+        <div v-if="isLoading" class="flex h-full items-center justify-center text-sm text-gray-500">
+          Loading your conversation...
         </div>
 
         <!-- Chat Messages -->
@@ -70,12 +74,12 @@
             type="text"
             placeholder="Ask about your finances..."
             class="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-            :disabled="isTyping"
+            :disabled="isTyping || isLoading"
             @keydown.enter.prevent="handleSend"
           />
           <button
             type="submit"
-            :disabled="!inputMessage.trim() || isTyping"
+            :disabled="!inputMessage.trim() || isTyping || isLoading"
             class="px-4 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -89,13 +93,15 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import { format } from 'date-fns'
-import api from '../api/axios'
+import { useAiAssistantStore } from '../stores/aiAssistant'
 
-const messages = ref([])
+const aiAssistantStore = useAiAssistantStore()
+const messages = computed(() => aiAssistantStore.messages)
 const inputMessage = ref('')
-const isTyping = ref(false)
+const isTyping = computed(() => aiAssistantStore.sending)
+const isLoading = computed(() => aiAssistantStore.loading)
 const messagesContainer = ref(null)
 
 const suggestions = [
@@ -122,33 +128,17 @@ function scrollToBottom() {
 async function sendMessage(text) {
   if (!text.trim()) return
 
-  const userMessage = {
-    role: 'user',
-    content: text.trim(),
-    timestamp: new Date().toISOString()
-  }
-  messages.value.push(userMessage)
   inputMessage.value = ''
-  scrollToBottom()
 
-  isTyping.value = true
   try {
-    const response = await api.post('/api/ai/chat', { message: text.trim() })
-    const aiMessage = {
-      role: 'assistant',
-      content: response.data.message || response.data.reply || response.data,
-      timestamp: new Date().toISOString()
-    }
-    messages.value.push(aiMessage)
+    await aiAssistantStore.send(text)
   } catch (err) {
-    const errorMessage = {
+    aiAssistantStore.messages.push({
       role: 'assistant',
-      content: 'I\'m sorry, I couldn\'t process your request. Please try again later.',
+      content: aiAssistantStore.error || 'I\'m sorry, I couldn\'t process your request. Please try again later.',
       timestamp: new Date().toISOString()
-    }
-    messages.value.push(errorMessage)
+    })
   } finally {
-    isTyping.value = false
     scrollToBottom()
   }
 }
@@ -158,10 +148,15 @@ function handleSend() {
 }
 
 function clearChat() {
-  messages.value = []
+  aiAssistantStore.startNewConversation()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  try {
+    await aiAssistantStore.initialize()
+  } catch {
+    // The store exposes a user-readable error when loading fails.
+  }
   scrollToBottom()
 })
 </script>

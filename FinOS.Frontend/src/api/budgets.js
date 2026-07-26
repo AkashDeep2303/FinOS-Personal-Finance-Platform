@@ -1,8 +1,8 @@
 import api from './axios'
 
 export const budgetsApi = {
-  getAll(userId) {
-    return api.get(`/api/budget/budgets/user/${userId}`)
+  getAll() {
+    return api.get('/api/budget/budgets/me')
   },
 
   getById(id) {

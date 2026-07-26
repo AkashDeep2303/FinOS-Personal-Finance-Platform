@@ -43,6 +43,15 @@ View/component -> Pinia -> API module -> Axios -> YARP
 ```
 
 Login/register are public; financial pages require authentication.
+Accounts with two-factor authentication enabled complete RFC 6238 TOTP
+validation before Identity issues access or refresh tokens. TOTP secrets and
+codes are never returned in authentication responses.
+Identity persists refresh tokens explicitly through its Dapper repository.
+Refresh rotation marks the old token used and creates its replacement in one
+SQL transaction; authenticated logout revokes the supplied owned refresh token.
+Authenticated users can list their active refresh sessions and revoke individual
+or all other sessions. Session identity is derived from the authenticated user
+and JWT ID claims; refresh-token values are never returned by session APIs.
 
 | Gateway prefix | Service |
 |---|---|
@@ -66,7 +75,7 @@ Each bounded context uses `API -> Application -> Domain`, with Infrastructure im
 | Service | Responsibility |
 |---|---|
 | Identity | Users, login, roles, passwords, tokens |
-| CoreFinance | Accounts, categories, transactions, schedules, subscriptions |
+| CoreFinance | Accounts, categories, transactions, schedules, subscriptions, and the user-scoped Data Center read model |
 | Budget | Budgets, allocations, alerts, savings rules |
 | Investment | Portfolios, holdings, SIPs, EPF, gold, returns |
 | Loan | Loans, EMIs, prepayments, simulations |
@@ -78,6 +87,12 @@ Each bounded context uses `API -> Application -> Domain`, with Infrastructure im
 ## Persistence and flow
 
 Services share `FinOS`, divided into `Security`, `Core`, `Budget`, `Investment`, `Loan`, `Goals`, `Analytics`, `AI`, `Notifications`, `Subscriptions`, and `Import` schemas.
+
+CoreFinance financial-document binaries use an
+`IFinancialDocumentStorage` abstraction. The local/Compose implementation
+stores opaque files in a private, non-web-root volume while SQL retains
+claim-scoped metadata, hashes, and storage references. A managed object-store
+implementation can replace it without changing application handlers.
 
 ```text
 Schema -> SeedData -> StoredProcedures -> Views -> optional Jobs/Manual

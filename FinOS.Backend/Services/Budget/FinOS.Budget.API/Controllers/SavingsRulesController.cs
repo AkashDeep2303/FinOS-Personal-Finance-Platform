@@ -11,7 +11,7 @@ namespace FinOS.Budget.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class SavingsRulesController : ControllerBase
+public class SavingsRulesController : AuthenticatedControllerBase
 {
     private readonly IMediator _mediator;
 
@@ -20,31 +20,40 @@ public class SavingsRulesController : ControllerBase
         _mediator = mediator;
     }
 
-    [HttpGet("user/{userId}")]
+    [HttpGet("me")]
+    public async Task<ActionResult<ApiResponse<List<SavingsRuleDto>>>> GetMine([FromQuery] bool? isActive = null)
+    {
+        var result = await _mediator.Send(new GetSavingsRulesQuery(AuthenticatedUserId, isActive));
+        return Ok(ApiResponse<List<SavingsRuleDto>>.Ok(result));
+    }
+
+    [Obsolete("Use GET api/savingsrules/me.")]
+    [HttpGet("user/{userId:long}")]
     public async Task<ActionResult<ApiResponse<List<SavingsRuleDto>>>> GetByUser(long userId, [FromQuery] bool? isActive = null)
     {
-        var result = await _mediator.Send(new GetSavingsRulesQuery(userId, isActive));
+        if (userId != AuthenticatedUserId) return Forbid();
+        var result = await _mediator.Send(new GetSavingsRulesQuery(AuthenticatedUserId, isActive));
         return Ok(ApiResponse<List<SavingsRuleDto>>.Ok(result));
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<SavingsRuleDto>>> GetById(long id)
     {
-        // Get from list and find - simplified for now
-        return Ok(ApiResponse<SavingsRuleDto>.Ok(null!));
+        return Ok(ApiResponse<SavingsRuleDto>.Ok(
+            await _mediator.Send(new GetSavingsRuleQuery(AuthenticatedUserId, id))));
     }
 
     [HttpPost]
     public async Task<ActionResult<ApiResponse<SavingsRuleDto>>> Create([FromBody] CreateSavingsRuleRequest request)
     {
-        var result = await _mediator.Send(new CreateSavingsRuleCommand(request));
+        var result = await _mediator.Send(new CreateSavingsRuleCommand(AuthenticatedUserId, request));
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<SavingsRuleDto>.Ok(result, "Savings rule created successfully"));
     }
 
     [HttpPut("{id}")]
     public async Task<ActionResult<ApiResponse<SavingsRuleDto>>> Update(long id, [FromBody] UpdateSavingsRuleRequest request)
     {
-        var result = await _mediator.Send(new UpdateSavingsRuleCommand(id, request));
+        var result = await _mediator.Send(new UpdateSavingsRuleCommand(AuthenticatedUserId, id, request));
         return Ok(ApiResponse<SavingsRuleDto>.Ok(result, "Savings rule updated successfully"));
     }
 }

@@ -4,10 +4,7 @@ import router from '../router'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  timeout: 30000
 })
 
 let isRefreshing = false
@@ -68,7 +65,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null)
         const authStore = useAuthStore()
-        authStore.logout()
+        authStore.logout(false)
         router.push('/login')
         return Promise.reject(refreshError)
       } finally {

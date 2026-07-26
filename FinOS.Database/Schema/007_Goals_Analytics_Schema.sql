@@ -212,5 +212,28 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID(N'Analytics.Scenarios', N'U') IS NULL
+BEGIN
+    CREATE TABLE Analytics.Scenarios
+    (
+        Id              BIGINT IDENTITY(1,1) NOT NULL,
+        UserId          BIGINT NOT NULL,
+        Name            NVARCHAR(100) NOT NULL,
+        ScenarioType    NVARCHAR(80) NOT NULL,
+        Verdict         NVARCHAR(20) NOT NULL,
+        InputJson       NVARCHAR(MAX) NOT NULL,
+        ResultJson      NVARCHAR(MAX) NOT NULL,
+        CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        DeletedAt       DATETIME2 NULL,
+        CONSTRAINT PK_Analytics_Scenarios PRIMARY KEY CLUSTERED (Id) ON FinOS_Data,
+        CONSTRAINT FK_Analytics_Scenarios_Users FOREIGN KEY (UserId) REFERENCES Security.Users (Id) ON DELETE CASCADE,
+        CONSTRAINT CK_Analytics_Scenarios_InputJson CHECK (ISJSON(InputJson) = 1),
+        CONSTRAINT CK_Analytics_Scenarios_ResultJson CHECK (ISJSON(ResultJson) = 1)
+    );
+    CREATE NONCLUSTERED INDEX IX_Analytics_Scenarios_User_Created
+        ON Analytics.Scenarios (UserId, CreatedAt DESC) WHERE DeletedAt IS NULL ON FinOS_Index;
+END
+GO
+
 PRINT 'Goals & Analytics schema created successfully.';
 GO

@@ -5,10 +5,11 @@ using FinOS.Goals.Domain.Entities;
 using FinOS.Goals.Domain.Enums;
 using FinOS.Goals.Domain.Interfaces;
 using MediatR;
+using FinOS.Goals.Application.Services;
 
 namespace FinOS.Goals.Application.Commands;
 
-public record AddGoalContributionCommand(AddGoalContributionDto Dto) : IRequest<GoalContributionDto>;
+public record AddGoalContributionCommand(long UserId, AddGoalContributionDto Dto) : IRequest<GoalContributionDto>;
 
 public class AddGoalContributionCommandHandler : IRequestHandler<AddGoalContributionCommand, GoalContributionDto>
 {
@@ -29,8 +30,8 @@ public class AddGoalContributionCommandHandler : IRequestHandler<AddGoalContribu
     public async Task<GoalContributionDto> Handle(AddGoalContributionCommand request, CancellationToken cancellationToken)
     {
         var dto = request.Dto;
-        var goal = await _goalRepository.GetByIdAsync(dto.GoalId, cancellationToken)
-            ?? throw new NotFoundException("Goal", dto.GoalId);
+        var goal = await GoalOwnership.GetOwnedAsync(
+            _goalRepository, dto.GoalId, request.UserId, cancellationToken);
 
         if (goal.Status != GoalStatus.Active)
             throw new DomainException("GOAL_NOT_ACTIVE", "Cannot add contribution to a non-active goal.");

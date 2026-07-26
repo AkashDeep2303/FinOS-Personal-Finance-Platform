@@ -23,6 +23,13 @@
               placeholder="you@example.com"
             />
           </div>
+          <div v-if="twoFactorRequired">
+            <label for="twoFactorCode" class="block text-sm font-medium text-gray-700 mb-1">Authenticator code</label>
+            <input id="twoFactorCode" v-model.trim="form.twoFactorCode" inputmode="numeric"
+              autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+              placeholder="6-digit code" />
+          </div>
           <div>
             <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
             <input
@@ -71,21 +78,28 @@ import { useAuthStore } from '../stores/auth'
 const authStore = useAuthStore()
 const loading = ref(false)
 const error = ref(null)
+const twoFactorRequired = ref(false)
 
 const form = reactive({
   email: '',
   password: '',
-  rememberMe: false
+  rememberMe: false,
+  twoFactorCode: ''
 })
 
 async function handleLogin() {
   loading.value = true
   error.value = null
   try {
-    await authStore.login({
+    const result = await authStore.login({
       email: form.email,
-      password: form.password
+      password: form.password,
+      twoFactorCode: twoFactorRequired.value ? form.twoFactorCode : null
     })
+    if (result?.twoFactorRequired) {
+      twoFactorRequired.value = true
+      form.twoFactorCode = ''
+    }
   } catch (err) {
     error.value = authStore.error || 'Login failed. Please check your credentials.'
   } finally {

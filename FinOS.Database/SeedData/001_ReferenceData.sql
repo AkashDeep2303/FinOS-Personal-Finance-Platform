@@ -100,6 +100,19 @@ VALUES
     (NULL, NULL, N'Pet Care',            N'Expense', N'paw-print',      N'#F44336', NULL, 1, 1, 29, SYSUTCDATETIME(), SYSUTCDATETIME()),
     (NULL, NULL, N'Other Expense',       N'Expense', N'minus-circle',   N'#F44336', NULL, 1, 1, 30, SYSUTCDATETIME(), SYSUTCDATETIME());
 
+UPDATE Core.Categories
+SET CashFlowClassification =
+    CASE
+        WHEN Name = N'EMI' THEN N'EMI'
+        WHEN Name IN (N'Rent', N'Groceries', N'Utilities', N'Internet', N'Mobile Recharge',
+                      N'Transport', N'Insurance', N'Medical', N'Education',
+                      N'Home Maintenance', N'Child Care') THEN N'Essential'
+        WHEN Name IN (N'Dining Out', N'Shopping', N'Entertainment', N'Personal Care',
+                      N'Gym', N'Travel', N'Gifts & Donations', N'Pet Care') THEN N'Lifestyle'
+        ELSE N'Other'
+    END
+WHERE IsSystem = 1 AND Type = N'Expense';
+
 -- Insert sub-categories under 'Utilities'
 INSERT INTO Core.Categories
     (UserId, ParentId, Name, Type, Icon, Color, BudgetAmount, IsSystem, IsActive, SortOrder, CreatedAt, UpdatedAt)
@@ -187,6 +200,14 @@ INSERT INTO Core.Categories
 VALUES
     (NULL, NULL, N'Account Transfer',     N'Transfer', N'arrow-left-right', N'#607D8B', NULL, 1, 1, 31, SYSUTCDATETIME(), SYSUTCDATETIME()),
     (NULL, NULL, N'Credit Card Payment',  N'Transfer', N'credit-card',     N'#607D8B', NULL, 1, 1, 32, SYSUTCDATETIME(), SYSUTCDATETIME());
+
+UPDATE child
+SET child.CashFlowClassification = parent.CashFlowClassification
+FROM Core.Categories child
+JOIN Core.Categories parent ON parent.Id = child.ParentId
+WHERE child.IsSystem = 1
+  AND child.Type = N'Expense'
+  AND parent.CashFlowClassification <> N'Other';
 GO
 
 -- ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ public class GetCategoriesByUserQueryHandler : IRequestHandler<GetCategoriesByUs
             IsSystem = c.IsSystem,
             IsActive = c.IsActive,
             SortOrder = c.SortOrder,
+            CashFlowClassification = c.CashFlowClassification,
             CreatedAt = c.CreatedAt
         }).ToList();
 

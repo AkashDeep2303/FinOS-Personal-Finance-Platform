@@ -1,9 +1,11 @@
 using FinOS.Common.Models;
 using FinOS.Identity.Application.Commands;
 using FinOS.Identity.Application.DTOs;
+using FinOS.Identity.Application.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace FinOS.Identity.API.Controllers;
 
@@ -89,7 +91,7 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     [Authorize]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
-    public IActionResult Logout([FromBody] RefreshTokenRequest? request)
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest? request, CancellationToken ct)
     {
         // Get user ID from claims
         var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
@@ -100,11 +102,62 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse<object>.Fail("Invalid token"));
         }
 
-        // If a specific refresh token was provided, revoke it
-        // Otherwise, we just acknowledge the logout (client should discard tokens)
+        // Revoke the supplied refresh token when it belongs to the authenticated user.
+        await _mediator.Send(new LogoutCommand(userId, request?.RefreshToken, GetClientIpAddress()), ct);
         _logger.LogInformation("User {UserId} logged out", userId);
 
         return Ok(ApiResponse<object>.Ok(new { }, "Logged out successfully"));
+    }
+
+    [HttpGet("sessions")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<SessionDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSessions(CancellationToken ct)
+    {
+        if (!TryGetSessionContext(out var userId, out var jwtId))
+            return Unauthorized(ApiResponse<object>.Fail("Invalid token"));
+
+        var sessions = await _mediator.Send(new GetActiveSessionsQuery(userId, jwtId), ct);
+        return Ok(ApiResponse<IReadOnlyList<SessionDto>>.Ok(sessions));
+    }
+
+    [HttpDelete("sessions/{sessionId:long}")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> RevokeSession(long sessionId, CancellationToken ct)
+    {
+        if (!TryGetSessionContext(out var userId, out var jwtId))
+            return Unauthorized(ApiResponse<object>.Fail("Invalid token"));
+
+        await _mediator.Send(
+            new RevokeSessionCommand(userId, sessionId, jwtId, GetClientIpAddress()), ct);
+        return Ok(ApiResponse<object>.Ok(new { }, "Session revoked"));
+    }
+
+    [HttpPost("sessions/revoke-others")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> RevokeOtherSessions(CancellationToken ct)
+    {
+        if (!TryGetSessionContext(out var userId, out var jwtId))
+            return Unauthorized(ApiResponse<object>.Fail("Invalid token"));
+
+        await _mediator.Send(
+            new RevokeOtherSessionsCommand(userId, jwtId, GetClientIpAddress()), ct);
+        return Ok(ApiResponse<object>.Ok(new { }, "Other sessions revoked"));
+    }
+
+    private bool TryGetSessionContext(out long userId, out string jwtId)
+    {
+        userId = 0;
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+                          ?? User.FindFirst("sub");
+        jwtId = User.FindFirst(JwtRegisteredClaimNames.Jti)?.Value
+                ?? User.FindFirst("jti")?.Value
+                ?? string.Empty;
+        return userIdClaim is not null &&
+               long.TryParse(userIdClaim.Value, out userId) &&
+               !string.IsNullOrWhiteSpace(jwtId);
     }
 
     private string? GetClientIpAddress()

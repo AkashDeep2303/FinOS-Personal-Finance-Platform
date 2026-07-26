@@ -21,5 +21,5 @@ public class SIPsController : ControllerBase
     [HttpPut("{id:long}")] public async Task<ActionResult<ApiResponse<SIPDto>>> Update(long id,UpdateSIPRequest request)=>Ok(ApiResponse<SIPDto>.Ok(await _mediator.Send(new UpdateSIPCommand(UserId,id,request)),"SIP updated"));
     [HttpPatch("{id:long}/status")] public async Task<ActionResult<ApiResponse<object>>> Status(long id,ChangeSIPStatusRequest request){await _mediator.Send(new ChangeSIPStatusCommand(UserId,id,request.IsActive));return Ok(ApiResponse<object>.Ok(new{},"SIP status updated"));}
     [HttpDelete("{id:long}")] public async Task<ActionResult<ApiResponse<object>>> Delete(long id){await _mediator.Send(new DeleteSIPCommand(UserId,id));return Ok(ApiResponse<object>.Ok(new{},"SIP deleted"));}
-    [HttpPost("process")] public async Task<ActionResult<ApiResponse<int>>> Process(){var count=await _mediator.Send(new ProcessSIPInstallmentsCommand());return Ok(ApiResponse<int>.Ok(count));}
+    [HttpPost("process"), Authorize(Roles = "Admin,SuperAdmin")] public async Task<ActionResult<ApiResponse<int>>> Process(){var count=await _mediator.Send(new ProcessSIPInstallmentsCommand());return Ok(ApiResponse<int>.Ok(count));}
 }

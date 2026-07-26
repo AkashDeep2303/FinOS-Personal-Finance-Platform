@@ -10,5 +10,5 @@ public interface IAIMessageRepository : IRepository<AIMessage>
     Task<List<AIMessage>> GetByConversationIdAsync(long conversationId, CancellationToken ct = default);
     Task<List<AIMessage>> GetRecentByUserAsync(long userId, int count, CancellationToken ct = default);
     Task<AIMessage> CreateAsync(AIMessage message, CancellationToken ct = default);
-    Task UpdateAsync(AIMessage message, CancellationToken ct = default);
+    new Task UpdateAsync(AIMessage message, CancellationToken ct = default);
 }

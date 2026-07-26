@@ -29,7 +29,8 @@ public class CreateLoanCommandHandler : IRequestHandler<CreateLoanCommand, LoanD
     public async Task<LoanDto> Handle(CreateLoanCommand command, CancellationToken ct)
     {
         var req = command.Request;
-        var emi = FinancialCalculator.CalculateEMI(req.PrincipalAmount, req.InterestRate, req.TenureMonths);
+        var annualRate = req.InterestRate / 100m;
+        var emi = FinancialCalculator.CalculateEMI(req.PrincipalAmount, annualRate, req.TenureMonths);
         var totalAmountPayable = emi * req.TenureMonths;
         var totalInterest = totalAmountPayable - req.PrincipalAmount;
         var maturityDate = req.StartDate.AddMonths(req.TenureMonths);

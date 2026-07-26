@@ -4,10 +4,11 @@ using FinOS.Goals.Application.DTOs;
 using FinOS.Goals.Domain.Enums;
 using FinOS.Goals.Domain.Interfaces;
 using MediatR;
+using FinOS.Goals.Application.Services;
 
 namespace FinOS.Goals.Application.Commands;
 
-public record PauseGoalCommand(long GoalId) : IRequest<GoalDto>;
+public record PauseGoalCommand(long UserId, long GoalId) : IRequest<GoalDto>;
 
 public class PauseGoalCommandHandler : IRequestHandler<PauseGoalCommand, GoalDto>
 {
@@ -22,8 +23,8 @@ public class PauseGoalCommandHandler : IRequestHandler<PauseGoalCommand, GoalDto
 
     public async Task<GoalDto> Handle(PauseGoalCommand request, CancellationToken cancellationToken)
     {
-        var goal = await _goalRepository.GetByIdAsync(request.GoalId, cancellationToken)
-            ?? throw new NotFoundException("Goal", request.GoalId);
+        var goal = await GoalOwnership.GetOwnedAsync(
+            _goalRepository, request.GoalId, request.UserId, cancellationToken);
 
         if (goal.Status != GoalStatus.Active)
             throw new DomainException("GOAL_NOT_ACTIVE", "Only active goals can be paused.");

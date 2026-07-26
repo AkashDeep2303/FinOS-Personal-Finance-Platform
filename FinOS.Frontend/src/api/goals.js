@@ -1,8 +1,8 @@
 import api from './axios'
 
 export const goalsApi = {
-  getAll(userId) {
-    return api.get(`/api/goals/goals/user/${userId}`)
+  getAll() {
+    return api.get('/api/goals/goals/me')
   },
 
   getById(id) {
@@ -23,5 +23,9 @@ export const goalsApi = {
 
   addContribution(goalId, data) {
     return api.post(`/api/goals/goals/${goalId}/contribute`, { ...data, goalId })
+  },
+
+  getFundingAnalysis(availableMonthlySurplus) {
+    return api.get('/api/goals/goal-planning/funding-analysis', { params: { availableMonthlySurplus } })
   }
 }

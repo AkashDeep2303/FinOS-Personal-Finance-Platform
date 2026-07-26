@@ -1,287 +1,134 @@
 <template>
   <div class="space-y-6">
-    <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-      <span class="text-sm text-gray-500">{{ currentDate }}</span>
+    <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+      <div>
+        <p class="text-sm font-medium text-primary-700">Home</p>
+        <h1 class="text-2xl font-bold text-gray-900">Financial Command Center</h1>
+        <p class="mt-1 text-sm text-gray-500">Your current financial position, flow, health, and priorities.</p>
+      </div>
+      <span v-if="data?.asOfUtc" class="text-xs text-gray-500">Updated {{ formatIndianDate(data.asOfUtc, { long: true }) }}</span>
     </div>
 
-    <!-- Net Worth & Monthly Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <StatCard
-        title="Net Worth"
-        :value="netWorth"
-        icon="💰"
-        trend="up"
-        :trendValue="'+' + formatCurrency(monthlyChange)"
-      />
-      <StatCard
-        title="Monthly Income"
-        :value="monthlyIncome"
-        icon="📈"
-        trend="up"
-        trendValue="+12.5%"
-      />
-      <StatCard
-        title="Monthly Expenses"
-        :value="monthlyExpenses"
-        icon="📉"
-        trend="down"
-        trendValue="-3.2%"
-      />
-      <StatCard
-        title="Savings Rate"
-        :value="savingsRate + '%'"
-        icon="🎯"
-        :trend="savingsRate >= 20 ? 'up' : 'down'"
-        :trendValue="savingsRate >= 20 ? 'On track' : 'Below target'"
-      />
-    </div>
+    <LoadingState v-if="store.loading && !data" />
+    <ErrorState v-else-if="store.error && !data" :message="store.error" @retry="load" />
 
-    <!-- Main Content Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Recent Transactions -->
-      <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200">
-        <div class="p-6 border-b border-gray-100">
-          <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-gray-900">Recent Transactions</h2>
-            <router-link to="/transactions" class="text-sm text-primary-600 hover:text-primary-700 font-medium">View all →</router-link>
-          </div>
-        </div>
-        <div class="divide-y divide-gray-50">
-          <div v-if="recentTransactions.length === 0" class="p-6 text-center text-gray-500">
-            No recent transactions
-          </div>
-          <div
-            v-for="txn in recentTransactions"
-            :key="txn.id"
-            class="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-          >
-            <div class="flex items-center space-x-3">
-              <div
-                class="w-10 h-10 rounded-full flex items-center justify-center text-lg"
-                :class="txn.type === 'Income' ? 'bg-green-100' : 'bg-red-100'"
-              >
-                {{ txn.type === 'Income' ? '📥' : '📤' }}
-              </div>
-              <div>
-                <p class="text-sm font-medium text-gray-900">{{ txn.description || txn.category }}</p>
-                <p class="text-xs text-gray-500">{{ txn.category }} · {{ formatDate(txn.date) }}</p>
-              </div>
-            </div>
-            <span
-              class="text-sm font-semibold"
-              :class="txn.type === 'Income' ? 'text-green-600' : 'text-red-600'"
-            >
-              {{ txn.type === 'Income' ? '+' : '-' }}{{ formatCurrency(txn.amount) }}
-            </span>
-          </div>
-        </div>
+    <template v-else-if="data">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Net Worth" :value="formatMoney(data.metrics.netWorth, { compact: true })" icon="₹"
+          :trend="trendDirection(data.metrics.netWorthChange)" :trend-value="formatChange(data.metrics.netWorthChange)" />
+        <MetricCard title="Cash Available" :value="formatMoney(data.metrics.cashAvailable, { compact: true })" icon="◫" color="blue" />
+        <MetricCard title="Monthly Surplus" :value="formatMoney(data.metrics.monthlySurplus, { compact: true })" icon="↗"
+          :trend="trendDirection(data.metrics.monthlySurplus)" trend-value="Income less expenses" color="green" />
+        <MetricCard title="Financial Health" :value="data.metrics.financialHealthScore == null ? 'Not scored' : `${data.metrics.financialHealthScore} / 100`"
+          icon="◎" color="purple" />
       </div>
 
-      <!-- Budget Status -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div class="p-6 border-b border-gray-100">
-          <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-gray-900">Budget Status</h2>
-            <router-link to="/budgets" class="text-sm text-primary-600 hover:text-primary-700 font-medium">View →</router-link>
-          </div>
-        </div>
-        <div class="p-6 space-y-4">
-          <div v-if="budgets.length === 0" class="text-center text-gray-500 text-sm">
-            No budgets set
-          </div>
-          <div v-for="budget in budgets.slice(0, 5)" :key="budget.id" class="space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-gray-700">{{ budget.category }}</span>
-              <span class="text-xs text-gray-500">
-                {{ formatCurrency(budget.spent || 0) }} / {{ formatCurrency(budget.amount) }}
-              </span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div
-                class="h-2 rounded-full transition-all"
-                :class="getBudgetBarClass(budget)"
-                :style="{ width: getBudgetPercentage(budget) + '%' }"
-              ></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Investment & Loans Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Investment Summary -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div class="p-6 border-b border-gray-100">
-          <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-gray-900">Investment Summary</h2>
-            <router-link to="/investments" class="text-sm text-primary-600 hover:text-primary-700 font-medium">View →</router-link>
-          </div>
-        </div>
-        <div class="p-6">
-          <div class="grid grid-cols-2 gap-4">
-            <div class="text-center p-4 bg-green-50 rounded-lg">
-              <p class="text-xs text-gray-500 mb-1">Total Invested</p>
-              <p class="text-lg font-bold text-gray-900">{{ formatCurrency(totalInvested) }}</p>
-            </div>
-            <div class="text-center p-4 bg-blue-50 rounded-lg">
-              <p class="text-xs text-gray-500 mb-1">Current Value</p>
-              <p class="text-lg font-bold text-gray-900">{{ formatCurrency(currentInvestmentValue) }}</p>
-            </div>
-            <div class="text-center p-4 bg-primary-50 rounded-lg">
-              <p class="text-xs text-gray-500 mb-1">Total Returns</p>
-              <p class="text-lg font-bold" :class="investmentReturns >= 0 ? 'text-green-600' : 'text-red-600'">
-                {{ investmentReturns >= 0 ? '+' : '' }}{{ formatCurrency(investmentReturns) }}
-              </p>
-            </div>
-            <div class="text-center p-4 bg-amber-50 rounded-lg">
-              <p class="text-xs text-gray-500 mb-1">Monthly SIP</p>
-              <p class="text-lg font-bold text-gray-900">{{ formatCurrency(monthlySIP) }}</p>
-            </div>
-          </div>
-        </div>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Monthly Income" :value="formatMoney(data.metrics.monthlyIncome, { compact: true })" icon="+" color="green" />
+        <MetricCard title="Monthly Expenses" :value="formatMoney(data.metrics.monthlyExpenses, { compact: true })" icon="−" />
+        <MetricCard title="Savings Rate" :value="formatPercentage(data.metrics.savingsRatePct)" icon="%" color="blue" />
+        <MetricCard title="Net Worth Change" :value="data.metrics.netWorthChange == null ? 'Not available' : formatMoney(data.metrics.netWorthChange, { compact: true })"
+          :trend="trendDirection(data.metrics.netWorthChange)" :trend-value="formatPercentage(data.metrics.netWorthChangePct)" icon="Δ" />
       </div>
 
-      <!-- Upcoming EMIs & Goal Progress -->
-      <div class="space-y-6">
-        <!-- Upcoming EMIs -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div class="p-6 border-b border-gray-100">
-            <div class="flex items-center justify-between">
-              <h2 class="text-lg font-semibold text-gray-900">Upcoming EMIs</h2>
-              <router-link to="/loans" class="text-sm text-primary-600 hover:text-primary-700 font-medium">View →</router-link>
-            </div>
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <ChartCard title="Monthly Money Flow" subtitle="Only values supported by recorded data are shown." class="xl:col-span-2">
+          <div class="space-y-4">
+            <FlowRow label="Income" :value="data.moneyFlow.income" :maximum="flowMaximum" color="bg-green-500" />
+            <FlowRow label="Essential expenses" :value="data.moneyFlow.essentialExpenses" :maximum="flowMaximum" color="bg-red-500" />
+            <FlowRow label="Lifestyle expenses" :value="data.moneyFlow.lifestyleExpenses" :maximum="flowMaximum" color="bg-orange-400" />
+            <FlowRow label="EMIs" :value="data.moneyFlow.emiPayments" :maximum="flowMaximum" color="bg-amber-500" />
+            <FlowRow label="Investments" :value="data.moneyFlow.investments" :maximum="flowMaximum" color="bg-blue-500" />
+            <FlowRow label="Other / unclassified" :value="data.moneyFlow.otherExpenses" :maximum="flowMaximum" color="bg-gray-400" />
+            <FlowRow label="Savings / Free Cash" :value="data.moneyFlow.freeCash" :maximum="flowMaximum" color="bg-primary-500" />
           </div>
-          <div class="divide-y divide-gray-50">
-            <div v-if="upcomingEMIs.length === 0" class="p-6 text-center text-gray-500 text-sm">
-              No active loans
-            </div>
-            <div
-              v-for="emi in upcomingEMIs.slice(0, 3)"
-              :key="emi.id"
-              class="flex items-center justify-between p-4"
-            >
-              <div>
-                <p class="text-sm font-medium text-gray-900">{{ emi.name }}</p>
-                <p class="text-xs text-gray-500">Due: {{ formatDate(emi.dueDate) }}</p>
-              </div>
-              <span class="text-sm font-semibold text-red-600">{{ formatCurrency(emi.emiAmount) }}</span>
-            </div>
-          </div>
-        </div>
+          <p class="mt-5 text-xs text-gray-500">Expense groups follow each transaction category's configured cash-flow classification.</p>
+        </ChartCard>
 
-        <!-- Goal Progress -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div class="p-6 border-b border-gray-100">
-            <div class="flex items-center justify-between">
-              <h2 class="text-lg font-semibold text-gray-900">Goal Progress</h2>
-              <router-link to="/goals" class="text-sm text-primary-600 hover:text-primary-700 font-medium">View →</router-link>
+        <ChartCard title="Financial Health">
+          <div class="flex items-center gap-5">
+            <div class="flex h-24 w-24 items-center justify-center rounded-full border-8 border-primary-100 text-2xl font-bold text-primary-700">
+              {{ data.financialHealth.overallScore ?? '—' }}
+            </div>
+            <div class="space-y-2 text-sm">
+              <p>Grade <strong>{{ data.financialHealth.grade ?? 'Not available' }}</strong></p>
+              <p>Savings rate <strong>{{ formatPercentage(data.financialHealth.savingsRatePct) }}</strong></p>
+              <p>DTI <strong>{{ formatPercentage(data.financialHealth.debtToIncomeRatio, { fraction: true }) }}</strong></p>
+              <p>Emergency fund <strong>{{ data.financialHealth.emergencyFundMonths?.toFixed(1) ?? '—' }} months</strong></p>
             </div>
           </div>
-          <div class="p-6 space-y-3">
-            <div v-if="goals.length === 0" class="text-center text-gray-500 text-sm">
-              No active goals
-            </div>
-            <div v-for="goal in goals.slice(0, 3)" :key="goal.id">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-sm text-gray-700">{{ goal.name }}</span>
-                <span class="text-xs text-gray-500">{{ Math.round(goalProgress(goal)) }}%</span>
-              </div>
-              <div class="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  class="h-2 rounded-full bg-primary-600 transition-all"
-                  :style="{ width: goalProgress(goal) + '%' }"
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </ChartCard>
       </div>
-    </div>
+
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChartCard title="Assets" :subtitle="formatMoney(data.balanceSheet.totalAssets)">
+          <BreakdownList :items="data.balanceSheet.assets" empty-message="Create a net-worth snapshot to see asset details." />
+        </ChartCard>
+        <ChartCard title="Liabilities" :subtitle="formatMoney(data.balanceSheet.totalLiabilities)">
+          <BreakdownList :items="data.balanceSheet.liabilities" empty-message="No recorded liabilities in the latest snapshot." />
+        </ChartCard>
+      </div>
+
+      <section>
+        <div class="mb-4 flex items-end justify-between">
+          <div><h2 class="text-xl font-semibold text-gray-900">This Month's Financial Intelligence</h2><p class="text-sm text-gray-500">Deterministic observations based on recorded figures.</p></div>
+        </div>
+        <div v-if="data.insights.length" class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <InsightCard v-for="insight in data.insights" :key="insight.code" :title="insight.title"
+            :explanation="insight.explanation" :area="insight.area" :calculation="insight.calculation"
+            :status="insightStatus(insight.severity)" :label="insight.severity"
+            :to="insight.actionRoute" :action="insight.actionLabel" />
+        </div>
+        <EmptyState v-else title="No urgent insights" message="FinOS has not detected a priority warning from the currently available data." icon="✓" />
+      </section>
+
+      <ChartCard title="Data Completeness" :subtitle="`${data.dataCompleteness.score}% of Command Center inputs available`">
+        <div class="h-2 overflow-hidden rounded-full bg-gray-100"><div class="h-full rounded-full bg-primary-600" :style="{ width: `${data.dataCompleteness.score}%` }"></div></div>
+        <div v-if="data.dataCompleteness.missing.length" class="mt-4">
+          <p class="text-sm font-medium text-gray-800">Still needed</p>
+          <ul class="mt-2 grid gap-2 text-sm text-gray-600 sm:grid-cols-2"><li v-for="item in data.dataCompleteness.missing" :key="item">• {{ item }}</li></ul>
+        </div>
+      </ChartCard>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { format } from 'date-fns'
-import { useAccountsStore } from '../stores/accounts'
-import { useTransactionsStore } from '../stores/transactions'
-import { useBudgetsStore } from '../stores/budgets'
-import { useInvestmentsStore } from '../stores/investments'
-import { useLoansStore } from '../stores/loans'
-import { useGoalsStore } from '../stores/goals'
-import StatCard from '../components/StatCard.vue'
+import { computed, defineComponent, h, onMounted } from 'vue'
+import { useAnalyticsStore } from '../stores/analytics'
+import { formatIndianDate, formatMoney, formatPercentage } from '../utils/formatters'
+import MetricCard from '../components/StatCard.vue'
+import ChartCard from '../components/ChartCard.vue'
+import EmptyState from '../components/EmptyState.vue'
+import ErrorState from '../components/ErrorState.vue'
+import InsightCard from '../components/InsightCard.vue'
+import LoadingState from '../components/LoadingState.vue'
 
-const accountsStore = useAccountsStore()
-const transactionsStore = useTransactionsStore()
-const budgetsStore = useBudgetsStore()
-const investmentsStore = useInvestmentsStore()
-const loansStore = useLoansStore()
-const goalsStore = useGoalsStore()
+const store = useAnalyticsStore()
+const data = computed(() => store.commandCenter)
+const flowMaximum = computed(() => Math.max(data.value?.moneyFlow?.income || 0, data.value?.moneyFlow?.totalExpenses || 0, 1))
 
-const currentDate = computed(() => format(new Date(), 'EEEE, dd MMMM yyyy'))
-
-const netWorth = computed(() => formatCurrency(accountsStore.totalBalance))
-const monthlyIncome = computed(() => formatCurrency(transactionsStore.totalIncome))
-const monthlyExpenses = computed(() => formatCurrency(transactionsStore.totalExpense))
-const monthlyChange = computed(() => transactionsStore.totalIncome - transactionsStore.totalExpense)
-const savingsRate = computed(() => {
-  const income = transactionsStore.totalIncome
-  if (income === 0) return 0
-  return Math.round(((income - transactionsStore.totalExpense) / income) * 100)
-})
-
-const recentTransactions = computed(() => transactionsStore.recentTransactions)
-const budgets = computed(() => budgetsStore.budgets)
-const upcomingEMIs = computed(() => loansStore.upcomingEMIs)
-const goals = computed(() => goalsStore.activeGoals)
-
-const totalInvested = computed(() => investmentsStore.totalInvested)
-const currentInvestmentValue = computed(() => investmentsStore.currentValue)
-const investmentReturns = computed(() => investmentsStore.totalReturns)
-const monthlySIP = computed(() => investmentsStore.totalSIPMonthly)
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount || 0)
-}
-
-function formatDate(date) {
-  if (!date) return ''
-  return format(new Date(date), 'dd MMM yyyy')
-}
-
-function getBudgetPercentage(budget) {
-  if (!budget.amount) return 0
-  return Math.min(Math.round(((budget.spent || 0) / budget.amount) * 100), 100)
-}
-
-function getBudgetBarClass(budget) {
-  const pct = getBudgetPercentage(budget)
-  if (pct >= 100) return 'bg-red-500'
-  if (pct >= 80) return 'bg-amber-500'
-  return 'bg-green-500'
-}
-
-function goalProgress(goal) {
-  if (!goal.targetAmount) return 0
-  return Math.min(((goal.currentAmount || 0) / goal.targetAmount) * 100, 100)
-}
-
-onMounted(async () => {
-  await Promise.all([
-    accountsStore.fetchAccounts(),
-    transactionsStore.fetchTransactions(),
-    budgetsStore.fetchBudgets(),
-    investmentsStore.fetchInvestments(),
-    investmentsStore.fetchSIPs(),
-    loansStore.fetchLoans(),
-    goalsStore.fetchGoals()
+const FlowRow = defineComponent({
+  props: { label: String, value: Number, maximum: Number, color: String },
+  setup: props => () => h('div', [
+    h('div', { class: 'mb-1 flex justify-between text-sm' }, [h('span', props.label), h('strong', formatMoney(props.value))]),
+    h('div', { class: 'h-3 overflow-hidden rounded-full bg-gray-100' }, h('div', {
+      class: `h-full rounded-full ${props.color}`,
+      style: { width: `${Math.max(0, Math.min(100, props.value / props.maximum * 100))}%` }
+    }))
   ])
 })
+
+const BreakdownList = defineComponent({
+  props: { items: Array, emptyMessage: String },
+  setup: props => () => props.items?.length
+    ? h('div', { class: 'space-y-3' }, props.items.map(item => h('div', { class: 'flex justify-between text-sm' }, [h('span', item.name), h('strong', formatMoney(item.amount))])))
+    : h('p', { class: 'text-sm text-gray-500' }, props.emptyMessage)
+})
+
+function trendDirection(value) { return value > 0 ? 'up' : value < 0 ? 'down' : 'flat' }
+function formatChange(value) { return value == null ? '' : `${value >= 0 ? '+' : ''}${formatMoney(value)}` }
+function insightStatus(severity) { return severity === 'high' ? 'negative' : severity === 'info' ? 'neutral' : 'warning' }
+function load() { return store.fetchCommandCenter() }
+onMounted(load)
 </script>

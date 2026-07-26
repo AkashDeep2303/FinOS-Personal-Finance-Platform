@@ -11,17 +11,33 @@
           {{ error }}
         </div>
         <form @submit.prevent="handleRegister" class="space-y-4">
-          <div>
-            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-            <input
-              id="name"
-              v-model="form.name"
-              type="text"
-              required
-              autocomplete="name"
-              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm"
-              placeholder="Rahul Sharma"
-            />
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label for="firstName" class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+              <input
+                id="firstName"
+                v-model.trim="form.firstName"
+                type="text"
+                required
+                maxlength="50"
+                autocomplete="given-name"
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm"
+                placeholder="Rahul"
+              />
+            </div>
+            <div>
+              <label for="lastName" class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+              <input
+                id="lastName"
+                v-model.trim="form.lastName"
+                type="text"
+                required
+                maxlength="50"
+                autocomplete="family-name"
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm"
+                placeholder="Sharma"
+              />
+            </div>
           </div>
           <div>
             <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
@@ -42,10 +58,15 @@
               v-model="form.password"
               type="password"
               required
+              minlength="8"
+              maxlength="100"
+              pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,100}"
+              title="Use 8–100 characters with uppercase, lowercase, a number, and a special character."
               autocomplete="new-password"
               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-sm"
               placeholder="Min 8 characters"
             />
+            <p class="mt-1 text-xs text-gray-500">Use uppercase, lowercase, a number, and a special character.</p>
           </div>
           <div>
             <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
@@ -114,7 +135,8 @@ const loading = ref(false)
 const error = ref(null)
 
 const form = reactive({
-  name: '',
+  firstName: '',
+  lastName: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -136,9 +158,11 @@ async function handleRegister() {
   error.value = null
   try {
     await authStore.register({
-      name: form.name,
+      firstName: form.firstName,
+      lastName: form.lastName,
       email: form.email,
       password: form.password,
+      confirmPassword: form.confirmPassword,
       currency: form.currency
     })
   } catch (err) {

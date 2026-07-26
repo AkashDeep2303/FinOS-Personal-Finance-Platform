@@ -11,23 +11,23 @@ namespace FinOS.Analytics.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class FinancialScoreController : ControllerBase
+public class FinancialScoreController : AuthenticatedControllerBase
 {
     private readonly IMediator _mediator;
 
     public FinancialScoreController(IMediator mediator) => _mediator = mediator;
 
     [HttpGet("history")]
-    public async Task<ActionResult<ApiResponse<List<FinancialScoreDto>>>> GetHistory([FromQuery] long userId, [FromQuery] int months = 12)
+    public async Task<ActionResult<ApiResponse<List<FinancialScoreDto>>>> GetHistory([FromQuery] int months = 12)
     {
-        var result = await _mediator.Send(new GetFinancialScoreHistoryQuery(userId, months));
+        var result = await _mediator.Send(new GetFinancialScoreHistoryQuery(AuthenticatedUserId, months));
         return Ok(ApiResponse<List<FinancialScoreDto>>.Ok(result));
     }
 
     [HttpPost("calculate")]
     public async Task<ActionResult<ApiResponse<FinancialScoreDto>>> Calculate([FromBody] CalculateFinancialScoreDto dto)
     {
-        var result = await _mediator.Send(new CalculateFinancialScoreCommand(dto));
+        var result = await _mediator.Send(new CalculateFinancialScoreCommand(dto with { UserId = AuthenticatedUserId }));
         return Ok(ApiResponse<FinancialScoreDto>.Ok(result, "Financial score calculated successfully"));
     }
 }

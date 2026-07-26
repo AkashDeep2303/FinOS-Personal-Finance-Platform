@@ -16,6 +16,7 @@ public class Category : IAuditableEntity
     public bool IsSystem { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
+    public string CashFlowClassification { get; set; } = "Other";
 
     // Audit fields
     public DateTime CreatedAt { get; set; }

@@ -169,7 +169,7 @@ public class TransactionRepository : ITransactionRepository
         parameters.Add("@AccountId", transaction.AccountId);
         parameters.Add("@CategoryId", transaction.CategoryId);
         parameters.Add("@TransferAccountId", transaction.TransferAccountId);
-        parameters.Add("@Type", (int)transaction.Type);
+        parameters.Add("@Type", transaction.Type.ToString());
         parameters.Add("@Amount", transaction.Amount);
         parameters.Add("@Currency", transaction.Currency);
         parameters.Add("@ExchangeRate", transaction.ExchangeRate);
@@ -181,10 +181,17 @@ public class TransactionRepository : ITransactionRepository
         parameters.Add("@TransactionTime", transaction.TransactionTime);
         parameters.Add("@ValueDate", transaction.ValueDate);
         parameters.Add("@ReferenceNumber", transaction.ReferenceNumber);
+        parameters.Add("@MerchantName", transaction.MerchantName);
         parameters.Add("@MerchantCategory", transaction.MerchantCategory);
         parameters.Add("@IsRecurring", transaction.IsRecurring);
         parameters.Add("@RecurringScheduleId", transaction.RecurringScheduleId);
-        parameters.Add("@Source", (int)transaction.Source);
+        parameters.Add("@IsFlagged", transaction.IsFlagged);
+        parameters.Add("@AttachmentUrls", transaction.AttachmentUrls);
+        parameters.Add("@LocationLat", transaction.LocationLat);
+        parameters.Add("@LocationLng", transaction.LocationLng);
+        parameters.Add("@LocationName", transaction.LocationName);
+        parameters.Add("@Source", transaction.Source.ToString());
+        parameters.Add("@ImportBatchId", transaction.ImportBatchId);
         parameters.Add("@NewTransactionId", dbType: System.Data.DbType.Int64, direction: System.Data.ParameterDirection.Output);
 
         await connection.ExecuteAsync(sql, parameters, commandType: System.Data.CommandType.StoredProcedure);

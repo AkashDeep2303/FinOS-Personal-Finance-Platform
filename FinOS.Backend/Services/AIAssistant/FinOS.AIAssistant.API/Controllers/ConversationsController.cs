@@ -11,7 +11,7 @@ namespace FinOS.AIAssistant.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class ConversationsController : ControllerBase
+public class ConversationsController : AuthenticatedControllerBase
 {
     private readonly IMediator _mediator;
 
@@ -20,7 +20,7 @@ public class ConversationsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<ConversationDto>>>> GetConversations([FromQuery] long userId, [FromQuery] int count = 20)
     {
-        var result = await _mediator.Send(new GetConversationsByUserQuery(userId, count));
+        var result = await _mediator.Send(new GetConversationsByUserQuery(AuthenticatedUserId, count));
         return Ok(ApiResponse<List<ConversationDto>>.Ok(result));
     }
 
@@ -34,7 +34,7 @@ public class ConversationsController : ControllerBase
     [HttpGet("{id}/messages")]
     public async Task<ActionResult<ApiResponse<List<MessageDto>>>> GetMessages(long id, [FromQuery] long userId)
     {
-        var result = await _mediator.Send(new GetConversationMessagesQuery(id, userId));
+        var result = await _mediator.Send(new GetConversationMessagesQuery(id, AuthenticatedUserId));
         return Ok(ApiResponse<List<MessageDto>>.Ok(result));
     }
 }

@@ -112,6 +112,73 @@ public class LoanRepository : ILoanRepository
         return loans;
     }
 
+    public async Task<Domain.Results.DebtOverviewResult> GetDebtOverviewAsync(long userId, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QueryFirstOrDefaultAsync<Domain.Results.DebtOverviewResult>(
+            """
+            SELECT d.TotalOutstandingDebt, d.TotalMonthlyEMI, d.ActiveLoanCount,
+                   d.MonthlyIncome, d.DebtToIncomeRatioPct, d.RiskCategory,
+                   d.MonthlySurplusAfterEMI,
+                   CAST(ISNULL((
+                       SELECT SUM(l.OutstandingPrincipal * l.InterestRate)
+                            / NULLIF(SUM(l.OutstandingPrincipal), 0)
+                       FROM Loan.Loans l
+                       WHERE l.UserId = @UserId AND l.Status = N'Active' AND l.DeletedAt IS NULL
+                   ), 0) AS DECIMAL(8,4)) AS WeightedInterestRate,
+                   (SELECT MAX(l.MaturityDate) FROM Loan.Loans l
+                    WHERE l.UserId = @UserId AND l.Status = N'Active' AND l.DeletedAt IS NULL) AS DebtFreeDate
+            FROM Views.vw_DebtToIncomeRatio d WHERE d.UserId = @UserId
+            """, new { UserId = userId })
+            ?? new Domain.Results.DebtOverviewResult();
+    }
+
+    public async Task<List<Domain.Results.LoanRateHistoryResult>> GetRateHistoryAsync(long loanId, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var rows = await connection.QueryAsync<Domain.Results.LoanRateHistoryResult>(new CommandDefinition(
+            @"SELECT Id, LoanId, PreviousRate, NewRate, EffectiveDate, Reason, CreatedAt
+              FROM Loan.LoanInterestRateHistory WHERE LoanId = @LoanId ORDER BY EffectiveDate DESC, Id DESC",
+            new { LoanId = loanId }, cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    public async Task AddRateChangeAsync(long loanId, decimal newRate, DateTime effectiveDate, string? reason, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(ct);
+        using var transaction = connection.BeginTransaction();
+        var previousRate = await connection.ExecuteScalarAsync<decimal>(new CommandDefinition(
+            "SELECT InterestRate FROM Loan.Loans WITH (UPDLOCK, ROWLOCK) WHERE Id = @LoanId AND DeletedAt IS NULL",
+            new { LoanId = loanId }, transaction, cancellationToken: ct));
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"INSERT INTO Loan.LoanInterestRateHistory (LoanId, PreviousRate, NewRate, EffectiveDate, Reason)
+              VALUES (@LoanId, @PreviousRate, @NewRate, @EffectiveDate, @Reason);
+              UPDATE Loan.Loans SET InterestRate = @NewRate, UpdatedAt = SYSUTCDATETIME() WHERE Id = @LoanId;",
+            new { LoanId = loanId, PreviousRate = previousRate, NewRate = newRate, EffectiveDate = effectiveDate.Date, Reason = reason },
+            transaction, cancellationToken: ct));
+        transaction.Commit();
+    }
+
+    public async Task<Domain.Results.LoanPaymentAnalysisResult> GetPaymentAnalysisAsync(long loanId, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QuerySingleAsync<Domain.Results.LoanPaymentAnalysisResult>(new CommandDefinition(
+            """
+            SELECT COUNT(1) ScheduledPayments,
+                   ISNULL(SUM(CASE WHEN IsPaid = 1 THEN 1 ELSE 0 END),0) PaidPayments,
+                   ISNULL(SUM(CASE WHEN IsPaid = 0 AND EMIDate >= CAST(GETUTCDATE() AS DATE) THEN 1 ELSE 0 END),0) UpcomingPayments,
+                   ISNULL(SUM(CASE WHEN IsPaid = 0 AND EMIDate < CAST(GETUTCDATE() AS DATE) THEN 1 ELSE 0 END),0) LatePayments,
+                   ISNULL(SUM(PrincipalComponent),0) ScheduledPrincipal,
+                   ISNULL(SUM(CASE WHEN IsPaid=1 THEN COALESCE(ActualPrincipalPaid, PrincipalComponent) ELSE 0 END),0) PrincipalPaid,
+                   ISNULL(SUM(InterestComponent),0) ScheduledInterest,
+                   ISNULL(SUM(CASE WHEN IsPaid=1 THEN COALESCE(ActualInterestPaid, InterestComponent) ELSE 0 END),0) InterestPaid,
+                   ISNULL(SUM(CASE WHEN IsPaid=1 THEN LateFee ELSE 0 END),0) LateFeesPaid,
+                   ISNULL(SUM(CASE WHEN IsPaid=0 THEN InterestComponent ELSE 0 END),0) RemainingInterest
+            FROM Loan.EMISchedule WHERE LoanId = @LoanId
+            """, new { LoanId = loanId }, cancellationToken: ct));
+    }
+
     /// <summary>
     /// Creates a new loan using the Loan.sp_CreateLoan stored procedure.
     /// The SP calculates EMI, total interest, maturity date, and first EMI date.

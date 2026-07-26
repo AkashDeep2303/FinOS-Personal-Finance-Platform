@@ -17,6 +17,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISIPRepository, SIPRepository>();
         services.AddScoped<IEPFAccountRepository, EPFAccountRepository>();
         services.AddScoped<IGoldPriceRepository, GoldPriceRepository>();
+        services.AddScoped<IInvestmentTypeRepository, InvestmentTypeRepository>();
+        services.AddScoped<ITargetAllocationRepository, TargetAllocationRepository>();
+        services.AddScoped<IInvestmentAnalyticsRepository, InvestmentAnalyticsRepository>();
 
         return services;
     }

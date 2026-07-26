@@ -2,14 +2,16 @@ using FinOS.Common.Exceptions;
 using FinOS.Loan.Application.DTOs;
 using FinOS.Loan.Domain.Interfaces;
 using MediatR;
+using FinOS.Loan.Application.Services;
 
 namespace FinOS.Loan.Application.Queries;
 
 public class GetEMIScheduleQuery : IRequest<List<EMIScheduleDto>>
 {
+    public long UserId { get; set; }
     public long LoanId { get; set; }
 
-    public GetEMIScheduleQuery(long loanId) { LoanId = loanId; }
+    public GetEMIScheduleQuery(long userId, long loanId) { UserId = userId; LoanId = loanId; }
 }
 
 public class GetEMIScheduleQueryHandler : IRequestHandler<GetEMIScheduleQuery, List<EMIScheduleDto>>
@@ -23,8 +25,9 @@ public class GetEMIScheduleQueryHandler : IRequestHandler<GetEMIScheduleQuery, L
 
     public async Task<List<EMIScheduleDto>> Handle(GetEMIScheduleQuery query, CancellationToken ct)
     {
-        var loan = await _loanRepository.GetWithScheduleAsync(query.LoanId, ct)
-            ?? throw new NotFoundException(nameof(Domain.Entities.Loan), query.LoanId);
+        var loan = LoanOwnership.EnsureOwned(
+            await _loanRepository.GetWithScheduleAsync(query.LoanId, ct),
+            query.LoanId, query.UserId);
 
         return loan.EMISchedule.OrderBy(e => e.EMINumber).Select(e => new EMIScheduleDto
         {

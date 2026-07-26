@@ -258,5 +258,58 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'FK_ImportErrors_ResolvedTransaction'
+      AND parent_object_id = OBJECT_ID(N'Import.ImportErrors')
+)
+AND NOT EXISTS
+(
+    SELECT 1
+    FROM Import.ImportErrors e
+    LEFT JOIN Core.Transactions t ON t.Id = e.ResolvedTransactionId
+    WHERE e.ResolvedTransactionId IS NOT NULL AND t.Id IS NULL
+)
+BEGIN
+    ALTER TABLE Import.ImportErrors WITH CHECK
+        ADD CONSTRAINT FK_ImportErrors_ResolvedTransaction
+        FOREIGN KEY (ResolvedTransactionId) REFERENCES Core.Transactions (Id);
+END
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_ImportErrors_Batch_Resolution'
+      AND object_id = OBJECT_ID(N'Import.ImportErrors')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_ImportErrors_Batch_Resolution
+        ON Import.ImportErrors (BatchId, IsResolved, CreatedAt DESC)
+        INCLUDE (RowNumber, ResolvedTransactionId) ON FinOS_Index;
+END
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = N'FK_Transactions_ImportBatches'
+      AND parent_object_id = OBJECT_ID(N'Core.Transactions')
+)
+AND NOT EXISTS
+(
+    SELECT 1
+    FROM Core.Transactions t
+    LEFT JOIN Import.ImportBatches b ON b.Id = t.ImportBatchId
+    WHERE t.ImportBatchId IS NOT NULL AND b.Id IS NULL
+)
+BEGIN
+    ALTER TABLE Core.Transactions WITH CHECK
+        ADD CONSTRAINT FK_Transactions_ImportBatches
+        FOREIGN KEY (ImportBatchId) REFERENCES Import.ImportBatches (Id);
+END
+GO
+
 PRINT 'AI, Notifications, Subscriptions & Import schema created successfully.';
 GO

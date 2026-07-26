@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<INetWorthRepository, NetWorthRepository>();
         services.AddScoped<IMonthlyAggregateRepository, MonthlyAggregateRepository>();
         services.AddScoped<IFinancialScoreRepository, FinancialScoreRepository>();
+        services.AddScoped<IScenarioRepository, ScenarioRepository>();
+        services.AddScoped<ICashFlowClassificationRepository, CashFlowClassificationRepository>();
 
         // Register application services
         services.AddScoped<IScoreCalculationService, ScoreCalculationService>();

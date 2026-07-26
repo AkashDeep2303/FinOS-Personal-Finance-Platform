@@ -12,6 +12,18 @@ export const authApi = {
   refreshToken(refreshToken) {
     return api.post('/api/identity/refresh-token', { refreshToken })
   },
+  logout(refreshToken) {
+    return api.post('/api/identity/logout', refreshToken ? { refreshToken } : null)
+  },
+  getSessions() {
+    return api.get('/api/identity/sessions')
+  },
+  revokeSession(sessionId) {
+    return api.delete(`/api/identity/sessions/${sessionId}`)
+  },
+  revokeOtherSessions() {
+    return api.post('/api/identity/sessions/revoke-others')
+  },
 
   getProfile() {
     return api.get('/api/identity/users/me')
