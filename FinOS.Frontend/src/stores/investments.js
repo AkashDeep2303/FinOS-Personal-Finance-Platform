@@ -1,191 +1,30 @@
-import { defineStore } from 'pinia'
-import { investmentsApi } from '../api/investments'
-import { useAuthStore } from './auth'
-
-export const useInvestmentsStore = defineStore('investments', {
-  state: () => ({
-    investments: [],
-    sipList: [],
-    epfTracker: null,
-    portfolioSummary: {
-      totalInvested: 0,
-      currentValue: 0,
-      totalReturns: 0,
-      returnsPercentage: 0
-    },
-    loading: false,
-    error: null,
-    activePortfolioId: null
-  }),
-
-  getters: {
-    totalInvested: (state) => {
-      return state.investments.reduce((sum, i) => sum + (i.investedAmount || 0), 0)
-    },
-    currentValue: (state) => {
-      return state.investments.reduce((sum, i) => sum + (i.currentValue || 0), 0)
-    },
-    totalReturns: (state) => {
-      return state.currentValue - state.totalInvested
-    },
-    returnsPercentage: (state) => {
-      return state.totalInvested > 0
-        ? ((state.currentValue - state.totalInvested) / state.totalInvested * 100).toFixed(2)
-        : 0
-    },
-    investmentsByType: (state) => {
-      const grouped = {}
-      state.investments.forEach(inv => {
-        if (!grouped[inv.type]) grouped[inv.type] = []
-        grouped[inv.type].push(inv)
-      })
-      return grouped
-    },
-    activeSIPs: (state) => {
-      return state.sipList.filter(s => s.isActive)
-    },
-    totalSIPMonthly: (state) => {
-      return state.sipList
-        .filter(s => s.isActive)
-        .reduce((sum, s) => sum + (s.monthlyAmount || 0), 0)
-    }
-  },
-
-  actions: {
-    async fetchInvestments() {
-      this.loading = true
-      this.error = null
-      try {
-        const userId = useAuthStore().user?.id
-        if (!userId) throw new Error('No authenticated user is available')
-
-        let response = await investmentsApi.getAll(userId)
-        let portfolios = Array.isArray(response.data?.data) ? response.data.data : []
-
-        if (portfolios.length === 0) {
-          const created = await investmentsApi.createPortfolio({
-            userId,
-            name: 'My Portfolio',
-            currency: 'INR',
-            isDefault: true
-          })
-          const portfolio = created.data?.data
-          if (portfolio?.id) portfolios = [{ id: portfolio.id, name: portfolio.name, isDefault: true }]
-        }
-
-        const portfolio = portfolios.find(p => p.isDefault) || portfolios[0]
-        this.activePortfolioId = portfolio?.id || null
-        if (!this.activePortfolioId) {
-          this.investments = []
-          return
-        }
-
-        const summaryResponse = await investmentsApi.getSummary(this.activePortfolioId)
-        const summary = summaryResponse.data?.data ?? {}
-        this.investments = Array.isArray(summary.topHoldings) ? summary.topHoldings : []
-        this.portfolioSummary = {
-          totalInvested: summary.totalInvested ?? 0,
-          currentValue: summary.currentValue ?? 0,
-          totalReturns: summary.totalReturn ?? 0,
-          returnsPercentage: summary.totalReturnPct ?? 0
-        }
-      } catch (err) {
-        this.error = err.response?.data?.message || err.message || 'Failed to fetch investments'
-      } finally {
-        this.loading = false
-      }
-    },
-    async fetchSIPList() {
-      this.loading = true
-      try {
-        const userId = useAuthStore().user?.id
-        if (!userId) throw new Error('No authenticated user is available')
-        const response = await investmentsApi.getSIPs(userId)
-        this.sipList = Array.isArray(response.data?.data) ? response.data.data : []
-      } catch (err) {
-        this.error = err.response?.data?.message || err.message || 'Failed to fetch SIP list'
-      } finally {
-        this.loading = false
-      }
-    },
-
-    async fetchEPFTracker() {
-      // The service has account-specific EPF endpoints only. Keep the dashboard
-      // in an empty state until the user selects or creates an EPF account.
-      this.epfTracker = null
-    },
-
-    async createInvestment(data) {
-      this.loading = true
-      this.error = null
-      try {
-        if (!this.activePortfolioId) await this.fetchInvestments()
-        if (!this.activePortfolioId) throw new Error('No investment portfolio is available')
-
-        const typeIds = {
-          'Mutual Fund': 1,
-          Stock: 2,
-          FD: 3,
-          Gold: 4,
-          Crypto: 5,
-          EPF: 6,
-          PPF: 7,
-          NPS: 8,
-          'Real Estate': 9,
-          Bond: 10
-        }
-        const investedAmount = Number(data.investedAmount) || 0
-        const currentValue = Number(data.currentValue) || investedAmount
-        const response = await investmentsApi.create({
-          portfolioId: this.activePortfolioId,
-          investmentTypeId: typeIds[data.type] || 1,
-          symbol: data.symbol || data.name,
-          name: data.name,
-          quantity: 1,
-          avgPurchasePrice: investedAmount,
-          currentPrice: currentValue,
-          fundHouse: data.fundHouse || null,
-          notes: data.investmentDate ? 'Investment date: ' + data.investmentDate : null
-        })
-        const created = response.data?.data ?? response.data
-        this.investments.push(created)
-        return created
-      } catch (err) {
-        this.error = err.response?.data?.message || 'Failed to create investment'
-        throw err
-      } finally {
-        this.loading = false
-      }
-    },
-
-    async updateInvestment(id, data) {
-      this.loading = true
-      this.error = null
-      try {
-        const response = await investmentsApi.update(id, data)
-        const index = this.investments.findIndex(i => i.id === id)
-        if (index !== -1) this.investments[index] = response.data
-        return response.data
-      } catch (err) {
-        this.error = err.response?.data?.message || 'Failed to update investment'
-        throw err
-      } finally {
-        this.loading = false
-      }
-    },
-
-    async deleteInvestment(id) {
-      this.loading = true
-      this.error = null
-      try {
-        await investmentsApi.delete(id)
-        this.investments = this.investments.filter(i => i.id !== id)
-      } catch (err) {
-        this.error = err.response?.data?.message || 'Failed to delete investment'
-        throw err
-      } finally {
-        this.loading = false
-      }
-    }
-  }
+import{defineStore}from'pinia'
+import{investmentsApi}from'../api/investments'
+import{useAuthStore}from'./auth'
+export const useInvestmentsStore=defineStore('investments',{
+ state:()=>({investments:[],portfolioSummary:null,performance:null,allocationAnalysis:null,allocationTargets:[],sipList:[],epfTracker:null,epfProjection:null,activePortfolioId:null,loading:false,error:null}),
+ getters:{
+  totalInvested:s=>s.investments.reduce((a,x)=>a+Number(x.investedAmount||0),0),
+  currentValue:s=>s.investments.reduce((a,x)=>a+Number(x.currentValue||0),0),
+  totalReturns(){return this.currentValue-this.totalInvested},
+  returnsPercentage(){return this.totalInvested?((this.totalReturns/this.totalInvested)*100).toFixed(2):0},
+  totalSIPMonthly:s=>s.sipList.filter(x=>x.isActive).reduce((a,x)=>a+Number(x.monthlyAmount||0),0)
+ },
+ actions:{
+  async run(fn,message){this.loading=true;this.error=null;try{return await fn()}catch(e){this.error=e.response?.data?.message||e.message||message;throw e}finally{this.loading=false}},
+  async fetchInvestments(){return this.run(async()=>{const userId=useAuthStore().user?.id??useAuthStore().user?.userId;if(!userId)return;let r=await investmentsApi.getAll();let p=Array.isArray(r.data?.data)?r.data.data:[];if(!p.length){r=await investmentsApi.createPortfolio({name:'My Portfolio',currency:'INR',isDefault:true});p=[r.data?.data]}this.activePortfolioId=(p.find(x=>x?.isDefault)||p[0])?.id;if(this.activePortfolioId){r=await investmentsApi.getSummary(this.activePortfolioId);this.portfolioSummary=r.data?.data||null;this.investments=this.portfolioSummary?.topHoldings||[]}},'Failed to load investments')},
+  async fetchSIPs(){return this.run(async()=>{const r=await investmentsApi.getSIPs();this.sipList=r.data?.data||[]},'Failed to load SIPs')},
+  async createSIP(data){return this.run(async()=>{await investmentsApi.createSIP(data);await this.fetchSIPs()},'Failed to create SIP')},
+  async updateSIP(id,data){return this.run(async()=>{await investmentsApi.updateSIP(id,data);await this.fetchSIPs()},'Failed to update SIP')},
+  async setSIPStatus(id,value){return this.run(async()=>{await investmentsApi.setSIPStatus(id,value);await this.fetchSIPs()},'Failed to update SIP')},
+  async deleteSIP(id){return this.run(async()=>{await investmentsApi.deleteSIP(id);await this.fetchSIPs()},'Failed to delete SIP')},
+  async fetchEPF(){return this.run(async()=>{const r=await investmentsApi.getEPF();this.epfTracker=r.data?.data||null},'Failed to load EPF')},
+  async createEPF(data){return this.run(async()=>{await investmentsApi.createEPF(data);await this.fetchEPF()},'Failed to create EPF')},
+  async addEPFContribution(data){return this.run(async()=>{await investmentsApi.addEPFContribution(this.epfTracker.id,data);await this.fetchEPF()},'Failed to add contribution')},
+  async fetchEPFProjection(params){return this.run(async()=>{const r=await investmentsApi.getEPFProjection(this.epfTracker.id,params);this.epfProjection=r.data?.data},'Failed to calculate projection')}
+  ,async analyzeAllocation(targets){return this.run(async()=>{const r=await investmentsApi.analyzeAllocation({portfolioId:this.activePortfolioId,targets});this.allocationAnalysis=r.data?.data||null;return this.allocationAnalysis},'Failed to analyze allocation')}
+  ,async fetchAllocationTargets(){if(!this.activePortfolioId)return [];return this.run(async()=>{const r=await investmentsApi.getAllocationTargets(this.activePortfolioId);this.allocationTargets=r.data?.data||[];return this.allocationTargets},'Failed to load allocation targets')}
+  ,async saveAllocationTargets(targets){return this.run(async()=>{const r=await investmentsApi.saveAllocationTargets(this.activePortfolioId,targets);this.allocationTargets=r.data?.data||[];await this.analyzeAllocation(targets)},'Failed to save allocation targets')}
+  ,async fetchPerformance(months=12){if(!this.activePortfolioId)return;return this.run(async()=>{const r=await investmentsApi.getPerformance(this.activePortfolioId,months);this.performance=r.data?.data||null},'Failed to load investment performance')}
+ }
 })

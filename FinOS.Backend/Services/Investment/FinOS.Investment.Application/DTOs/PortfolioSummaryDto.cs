@@ -10,6 +10,8 @@ public class PortfolioSummaryDto
     public decimal CurrentValue { get; set; }
     public decimal TotalReturn { get; set; }
     public decimal TotalReturnPct { get; set; }
+    public decimal LargestHoldingPct { get; set; }
+    public int ConcentratedHoldingCount { get; set; }
     public List<AssetAllocationDto> AssetAllocation { get; set; } = new();
     public List<HoldingDto> TopHoldings { get; set; } = new();
 }

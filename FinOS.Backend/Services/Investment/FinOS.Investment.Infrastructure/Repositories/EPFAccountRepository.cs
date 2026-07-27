@@ -8,132 +8,32 @@ namespace FinOS.Investment.Infrastructure.Repositories;
 
 public class EPFAccountRepository : IEPFAccountRepository
 {
-    private readonly IConnectionFactory _connectionFactory;
+    private readonly IConnectionFactory _factory;
+    public EPFAccountRepository(IConnectionFactory factory)=>_factory=factory;
 
-    public EPFAccountRepository(IConnectionFactory connectionFactory)
+    public async Task<EPFAccount?> GetByIdAsync(long id,CancellationToken ct=default)=>await GetWithContributionsAsync(id,ct);
+    public async Task<List<EPFAccount>> GetByUserIdAsync(long userId,CancellationToken ct=default)
+    { using var db=_factory.CreateConnection(); return await Query(db,"e.UserId=@UserId",new{UserId=userId}); }
+    public async Task<EPFAccount?> GetWithContributionsAsync(long id,CancellationToken ct=default)
+    { using var db=_factory.CreateConnection(); return (await Query(db,"e.Id=@Id",new{Id=id})).FirstOrDefault(); }
+
+    private static async Task<List<EPFAccount>> Query(System.Data.IDbConnection db,string where,object args)
     {
-        _connectionFactory = connectionFactory;
+        var map=new Dictionary<long,EPFAccount>();
+        await db.QueryAsync<EPFAccount,EPFContribution,EPFAccount>($@"SELECT e.*,c.* FROM Investment.EPFAccounts e LEFT JOIN Investment.EPFContributions c ON c.EPFAccountId=e.Id WHERE {where} ORDER BY c.Month DESC",(a,c)=>{
+            if(!map.TryGetValue(a.Id,out var item)){item=a;item.Contributions=new();map[a.Id]=item;}
+            if(c?.Id>0)item.Contributions.Add(c); return item;
+        },args,splitOn:"Id"); return map.Values.ToList();
     }
 
-    public async Task<EPFAccount?> GetByIdAsync(long id, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        return await connection.QueryFirstOrDefaultAsync<EPFAccount>(
-            "SELECT * FROM [Investment].[EPFAccounts] WHERE Id = @Id", new { Id = id });
-    }
+    public async Task<long> CreateAccountAsync(long userId,string? uan,string? code,string? employer,decimal employeePct,decimal employerPct,decimal salary,decimal balance,decimal rate,DateTime startDate,CancellationToken ct=default)
+    { using var db=_factory.CreateConnection();var p=new DynamicParameters(new{UserId=userId,UAN=uan,EstablishmentCode=code,EmployerName=employer,EmployeeContributionPct=employeePct,EmployerContributionPct=employerPct,MonthlySalary=salary,CurrentBalance=balance,InterestRate=rate,StartDate=startDate});p.Add("Id",dbType:System.Data.DbType.Int64,direction:System.Data.ParameterDirection.Output);await db.ExecuteAsync("Investment.sp_CreateEPFAccount",p,commandType:System.Data.CommandType.StoredProcedure);return p.Get<long>("Id");}
+    public async Task<EPFContribution> AddContributionAsync(long accountId,long userId,DateTime month,decimal salary,CancellationToken ct=default)
+    { using var db=_factory.CreateConnection();return await db.QuerySingleAsync<EPFContribution>("Investment.sp_AddEPFContribution",new{EPFAccountId=accountId,UserId=userId,Month=month,MonthlySalary=salary},commandType:System.Data.CommandType.StoredProcedure);}
 
-    public async Task<PagedResult<EPFAccount>> PagedAsync(PagedQuery query, string schema, string tableName, string whereClause = "", object? param = null, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var where = string.IsNullOrWhiteSpace(whereClause) ? "" : $" WHERE {whereClause}";
-        var countSql = $"SELECT COUNT(*) FROM [{schema}].[{tableName}]{where}";
-        var dataSql = $"SELECT * FROM [{schema}].[{tableName}]{where} ORDER BY CreatedAt DESC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
-
-        var dp = new DynamicParameters(param);
-        dp.Add("@Offset", (query.PageNumber - 1) * query.PageSize);
-        dp.Add("@PageSize", query.PageSize);
-
-        var totalCount = await connection.ExecuteScalarAsync<int>(countSql, param);
-        var items = await connection.QueryAsync<EPFAccount>(dataSql, dp);
-
-        return new PagedResult<EPFAccount>
-        {
-            Items = items.ToList(),
-            TotalCount = totalCount,
-            Page = query.PageNumber,
-            PageSize = query.PageSize
-        };
-    }
-
-    public async Task<long> CountAsync(string schema, string tableName, string whereClause = "", object? param = null, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var where = string.IsNullOrWhiteSpace(whereClause) ? "" : $" WHERE {whereClause}";
-        return await connection.ExecuteScalarAsync<long>($"SELECT COUNT(*) FROM [{schema}].[{tableName}]{where}", param);
-    }
-
-    public async Task<List<EPFAccount>> GetByUserIdAsync(long userId, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = @"
-            SELECT e.*, c.* 
-            FROM [Investment].[EPFAccounts] e
-            LEFT JOIN [Investment].[EPFContributions] c ON e.Id = c.EPFAccountId
-            WHERE e.UserId = @UserId";
-
-        var accountDict = new Dictionary<long, EPFAccount>();
-        var result = await connection.QueryAsync<EPFAccount, EPFContribution, EPFAccount>(sql,
-            (account, contribution) =>
-            {
-                if (!accountDict.TryGetValue(account.Id, out var existingAccount))
-                {
-                    existingAccount = account;
-                    existingAccount.Contributions = new List<EPFContribution>();
-                    accountDict.Add(account.Id, existingAccount);
-                }
-                if (contribution != null)
-                {
-                    existingAccount.Contributions.Add(contribution);
-                }
-                return existingAccount;
-            },
-            new { UserId = userId }, splitOn: "Id");
-
-        return accountDict.Values.ToList();
-    }
-
-    public async Task<EPFAccount?> GetWithContributionsAsync(long epfAccountId, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = @"
-            SELECT e.*, c.* 
-            FROM [Investment].[EPFAccounts] e
-            LEFT JOIN [Investment].[EPFContributions] c ON e.Id = c.EPFAccountId
-            WHERE e.Id = @EpfAccountId";
-
-        var accountDict = new Dictionary<long, EPFAccount>();
-        var result = await connection.QueryAsync<EPFAccount, EPFContribution, EPFAccount>(sql,
-            (account, contribution) =>
-            {
-                if (!accountDict.TryGetValue(account.Id, out var existingAccount))
-                {
-                    existingAccount = account;
-                    existingAccount.Contributions = new List<EPFContribution>();
-                    accountDict.Add(account.Id, existingAccount);
-                }
-                if (contribution != null)
-                {
-                    existingAccount.Contributions.Add(contribution);
-                }
-                return existingAccount;
-            },
-            new { EpfAccountId = epfAccountId }, splitOn: "Id");
-
-        return accountDict.Values.FirstOrDefault();
-    }
-
-    public async Task UpdateEPFContributionAsync(long epfAccountId, decimal employeeContribution, decimal employerContribution, DateTime contributionDate, string? financialYear, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        await connection.ExecuteAsync(
-            "Investment.sp_UpdateEPFContribution",
-            new
-            {
-                EPFAccountId = epfAccountId,
-                EmployeeContribution = employeeContribution,
-                EmployerContribution = employerContribution,
-                ContributionDate = contributionDate,
-                FinancialYear = financialYear
-            },
-            commandType: System.Data.CommandType.StoredProcedure);
-    }
-
-    public Task<EPFAccount> AddAsync(EPFAccount entity, CancellationToken ct = default)
-    {
-        throw new NotImplementedException("EPF accounts are created via stored procedure. Use UpdateEPFContributionAsync instead.");
-    }
-
-    public Task UpdateAsync(EPFAccount entity, CancellationToken ct = default) => Task.CompletedTask;
-
-    public Task RemoveAsync(EPFAccount entity, CancellationToken ct = default) => Task.CompletedTask;
+    public async Task<EPFAccount> AddAsync(EPFAccount e,CancellationToken ct=default){e.Id=await CreateAccountAsync(e.UserId,e.UAN,e.EstablishmentCode,e.EmployerName,e.EmployeeContributionPct,e.EmployerContributionPct,e.MonthlySalary,e.CurrentBalance,e.InterestRate,e.StartDate,ct);return e;}
+    public Task UpdateAsync(EPFAccount e,CancellationToken ct=default)=>Task.CompletedTask;
+    public Task RemoveAsync(EPFAccount e,CancellationToken ct=default)=>Task.CompletedTask;
+    public async Task<PagedResult<EPFAccount>> PagedAsync(PagedQuery q,string schema,string tableName,string whereClause="",object? param=null,CancellationToken ct=default){var all=await GetByUserIdAsync(0,ct);return new(){Items=all,TotalCount=all.Count,Page=q.PageNumber,PageSize=q.PageSize};}
+    public async Task<long> CountAsync(string schema,string tableName,string whereClause="",object? param=null,CancellationToken ct=default){using var db=_factory.CreateConnection();return await db.ExecuteScalarAsync<long>($"SELECT COUNT(*) FROM [{schema}].[{tableName}]");}
 }

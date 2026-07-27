@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
         // Register application services
         services.AddScoped<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
+        services.AddSingleton<ITotpValidator, TotpValidator>();
         
         return services;
     }

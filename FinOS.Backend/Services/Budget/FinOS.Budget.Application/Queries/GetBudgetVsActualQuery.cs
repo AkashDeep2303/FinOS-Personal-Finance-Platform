@@ -2,15 +2,18 @@ using FinOS.Budget.Application.DTOs;
 using FinOS.Budget.Domain.Interfaces;
 using FinOS.Common.Exceptions;
 using MediatR;
+using FinOS.Budget.Application.Services;
 
 namespace FinOS.Budget.Application.Queries;
 
 public class GetBudgetVsActualQuery : IRequest<BudgetVsActualDto>
 {
+    public long UserId { get; set; }
     public long BudgetId { get; set; }
 
-    public GetBudgetVsActualQuery(long budgetId)
+    public GetBudgetVsActualQuery(long userId, long budgetId)
     {
+        UserId = userId;
         BudgetId = budgetId;
     }
 }
@@ -26,8 +29,8 @@ public class GetBudgetVsActualQueryHandler : IRequestHandler<GetBudgetVsActualQu
 
     public async Task<BudgetVsActualDto> Handle(GetBudgetVsActualQuery query, CancellationToken ct)
     {
-        var budget = await _budgetRepository.GetWithCategoriesAsync(query.BudgetId, ct)
-            ?? throw new NotFoundException(nameof(Domain.Entities.Budget), query.BudgetId);
+        var budget = await BudgetOwnership.GetOwnedAsync(
+            _budgetRepository, query.BudgetId, query.UserId, ct, includeCategories: true);
 
         var totalSpent = budget.Categories.Sum(c => c.SpentAmount);
 

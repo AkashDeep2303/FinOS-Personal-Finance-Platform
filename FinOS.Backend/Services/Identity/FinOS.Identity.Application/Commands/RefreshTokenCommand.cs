@@ -73,10 +73,6 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, A
             throw new DomainException("INVALID_USER", "User account not found or disabled.");
         }
 
-        // Mark current refresh token as used
-        existingRefreshToken.IsUsed = true;
-        existingRefreshToken.ReplacedByToken = null;
-
         // Generate new tokens
         var roles = user.UserRoles.Select(ur => ur.Role?.Name ?? "User").ToList();
         var accessToken = _tokenService.GenerateAccessToken(user, roles);
@@ -95,14 +91,8 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, A
             ReplacedByToken = null
         };
 
-        // Update old token's replaced-by reference
-        existingRefreshToken.ReplacedByToken = newRefreshTokenString;
-
-        // Add new refresh token
-        user.RefreshTokens.Add(newRefreshToken);
-
-        await _refreshTokenRepository.UpdateAsync(existingRefreshToken);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _refreshTokenRepository.RotateAsync(
+            existingRefreshToken.Id, newRefreshToken, command.IpAddress, ct);
 
         return new AuthResponse
         {

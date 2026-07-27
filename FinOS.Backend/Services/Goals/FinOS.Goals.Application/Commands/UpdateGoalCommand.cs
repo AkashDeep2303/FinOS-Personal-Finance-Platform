@@ -3,10 +3,11 @@ using FinOS.Common.Exceptions;
 using FinOS.Goals.Application.DTOs;
 using FinOS.Goals.Domain.Interfaces;
 using MediatR;
+using FinOS.Goals.Application.Services;
 
 namespace FinOS.Goals.Application.Commands;
 
-public record UpdateGoalCommand(UpdateGoalDto Dto) : IRequest<GoalDto>;
+public record UpdateGoalCommand(long UserId, UpdateGoalDto Dto) : IRequest<GoalDto>;
 
 public class UpdateGoalCommandHandler : IRequestHandler<UpdateGoalCommand, GoalDto>
 {
@@ -22,8 +23,8 @@ public class UpdateGoalCommandHandler : IRequestHandler<UpdateGoalCommand, GoalD
     public async Task<GoalDto> Handle(UpdateGoalCommand request, CancellationToken cancellationToken)
     {
         var dto = request.Dto;
-        var goal = await _goalRepository.GetByIdAsync(dto.Id, cancellationToken)
-            ?? throw new NotFoundException("Goal", dto.Id);
+        var goal = await GoalOwnership.GetOwnedAsync(
+            _goalRepository, dto.Id, request.UserId, cancellationToken);
 
         if (dto.Name is not null) goal.Name = dto.Name;
         if (dto.Description is not null) goal.Description = dto.Description;

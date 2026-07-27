@@ -306,7 +306,10 @@ BEGIN
             END
 
             DECLARE @SellQty       DECIMAL(18,4) = @HoldQty - @Quantity;
-            DECLARE @SellInvested  DECIMAL(18,2) = @SellQty * (SELECT AvgPurchasePrice FROM Investment.Holdings WHERE Id = @HoldingId);
+            DECLARE @SellAvgPrice  DECIMAL(18,4) = (SELECT AvgPurchasePrice FROM Investment.Holdings WHERE Id = @HoldingId);
+            DECLARE @SellInvested  DECIMAL(18,2) = @SellQty * @SellAvgPrice;
+            DECLARE @DisposedCostBasis DECIMAL(18,2) = @Quantity * @SellAvgPrice;
+            DECLARE @RealizedGain DECIMAL(18,2) = @TotalAmount - @Charges - @STT - @StampDuty - @DisposedCostBasis;
             DECLARE @SellPrice     DECIMAL(18,4);
             SELECT @SellPrice = ISNULL(CurrentPrice, @PricePerUnit)
             FROM Investment.Holdings WHERE Id = @HoldingId;
@@ -329,6 +332,10 @@ BEGIN
                 IsActive       = CASE WHEN @SellQty = 0 THEN 0 ELSE 1 END,
                 UpdatedAt      = SYSUTCDATETIME()
             WHERE Id = @HoldingId;
+
+            UPDATE Investment.Transactions
+            SET CostBasis = @DisposedCostBasis, RealizedGain = @RealizedGain
+            WHERE Id = @NewTransactionId;
 
             -- Credit source account
             IF @SourceAccount IS NOT NULL
@@ -1113,4 +1120,133 @@ GO
 PRINT 'Investment stored procedures created successfully.';
 GO
 
+IF OBJECT_ID(N'Investment.sp_CapturePortfolioValueSnapshots', N'P') IS NOT NULL
+    DROP PROCEDURE Investment.sp_CapturePortfolioValueSnapshots;
+GO
+CREATE PROCEDURE Investment.sp_CapturePortfolioValueSnapshots
+    @UserId BIGINT = NULL,
+    @SnapshotDate DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET @SnapshotDate = ISNULL(@SnapshotDate, CAST(SYSUTCDATETIME() AS DATE));
+
+    MERGE Investment.PortfolioValueSnapshots AS target
+    USING
+    (
+        SELECT p.Id PortfolioId, @SnapshotDate SnapshotDate,
+               ISNULL(SUM(CASE WHEN h.DeletedAt IS NULL THEN h.InvestedAmount ELSE 0 END),0) InvestedValue,
+               ISNULL(SUM(CASE WHEN h.DeletedAt IS NULL THEN h.CurrentValue ELSE 0 END),0) CurrentValue
+        FROM Investment.Portfolios p
+        LEFT JOIN Investment.Holdings h ON h.PortfolioId=p.Id
+        WHERE p.DeletedAt IS NULL AND (@UserId IS NULL OR p.UserId=@UserId)
+        GROUP BY p.Id
+    ) source
+    ON target.PortfolioId=source.PortfolioId AND target.SnapshotDate=source.SnapshotDate
+    WHEN MATCHED THEN UPDATE SET
+        InvestedValue=source.InvestedValue,
+        CurrentValue=source.CurrentValue,
+        UnrealizedGain=source.CurrentValue-source.InvestedValue,
+        CreatedAt=SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (PortfolioId, SnapshotDate, InvestedValue, CurrentValue, UnrealizedGain)
+        VALUES (source.PortfolioId, source.SnapshotDate, source.InvestedValue, source.CurrentValue,
+                source.CurrentValue-source.InvestedValue);
+END
+GO
+
+
+
+-- FinOS SIP/EPF tracker extensions
+IF COL_LENGTH(N'Investment.SIPs', N'SIPName') IS NULL
+    ALTER TABLE Investment.SIPs ADD SIPName NVARCHAR(300) NULL;
+GO
+
+CREATE OR ALTER PROCEDURE Investment.sp_CreateSIP
+ @UserId BIGINT,@SIPName NVARCHAR(300),@HoldingId BIGINT=NULL,@Amount DECIMAL(18,2),@Frequency NVARCHAR(20),
+ @DayOfMonth INT,@StartDate DATE,@EndDate DATE=NULL,@SourceAccountId BIGINT,@Id BIGINT OUTPUT
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF @Amount<=0 OR @DayOfMonth NOT BETWEEN 1 AND 31 THROW 50001,'Invalid SIP amount or debit day.',1;
+ IF NOT EXISTS(SELECT 1 FROM Core.Accounts WHERE Id=@SourceAccountId AND UserId=@UserId AND DeletedAt IS NULL) THROW 50002,'Source account is invalid.',1;
+ IF @HoldingId IS NOT NULL AND NOT EXISTS(SELECT 1 FROM Investment.Holdings h JOIN Investment.Portfolios p ON p.Id=h.PortfolioId WHERE h.Id=@HoldingId AND p.UserId=@UserId AND h.DeletedAt IS NULL) THROW 50003,'Holding is invalid.',1;
+ DECLARE @LastDay INT=DAY(EOMONTH(@StartDate));
+ DECLARE @First DATE=DATEFROMPARTS(YEAR(@StartDate),MONTH(@StartDate),IIF(@DayOfMonth>@LastDay,@LastDay,@DayOfMonth));
+ IF @First<@StartDate SET @First=DATEADD(MONTH,1,@First);
+ INSERT Investment.SIPs(UserId,HoldingId,SIPName,Amount,Frequency,DayOfMonth,StartDate,EndDate,NextExecutionDate,SourceAccountId)
+ VALUES(@UserId,@HoldingId,@SIPName,@Amount,@Frequency,@DayOfMonth,@StartDate,@EndDate,@First,@SourceAccountId);
+ SET @Id=SCOPE_IDENTITY();
+END;
+GO
+
+CREATE OR ALTER PROCEDURE Investment.sp_UpdateSIP
+ @Id BIGINT,@UserId BIGINT,@SIPName NVARCHAR(300),@HoldingId BIGINT=NULL,@Amount DECIMAL(18,2),@Frequency NVARCHAR(20),
+ @DayOfMonth INT,@StartDate DATE,@EndDate DATE=NULL,@SourceAccountId BIGINT
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF NOT EXISTS(SELECT 1 FROM Investment.SIPs WHERE Id=@Id AND UserId=@UserId) THROW 50004,'SIP not found.',1;
+ IF NOT EXISTS(SELECT 1 FROM Core.Accounts WHERE Id=@SourceAccountId AND UserId=@UserId AND DeletedAt IS NULL) THROW 50002,'Source account is invalid.',1;
+ UPDATE Investment.SIPs SET SIPName=@SIPName,HoldingId=@HoldingId,Amount=@Amount,Frequency=@Frequency,DayOfMonth=@DayOfMonth,
+ StartDate=@StartDate,EndDate=@EndDate,SourceAccountId=@SourceAccountId,UpdatedAt=SYSUTCDATETIME() WHERE Id=@Id AND UserId=@UserId;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE Investment.sp_SetSIPStatus @Id BIGINT,@UserId BIGINT,@IsActive BIT
+AS
+BEGIN
+ SET NOCOUNT ON;
+ UPDATE Investment.SIPs SET IsActive=@IsActive,UpdatedAt=SYSUTCDATETIME() WHERE Id=@Id AND UserId=@UserId;
+ IF @@ROWCOUNT=0 THROW 50004,'SIP not found.',1;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE Investment.sp_DeleteSIP @Id BIGINT,@UserId BIGINT
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF NOT EXISTS(SELECT 1 FROM Investment.SIPs WHERE Id=@Id AND UserId=@UserId) THROW 50004,'SIP not found.',1;
+ IF EXISTS(SELECT 1 FROM Investment.SIPs WHERE Id=@Id AND InstallmentsDone>0)
+  UPDATE Investment.SIPs SET IsActive=0,EndDate=COALESCE(EndDate,CAST(SYSUTCDATETIME() AS DATE)),UpdatedAt=SYSUTCDATETIME() WHERE Id=@Id;
+ ELSE DELETE Investment.SIPs WHERE Id=@Id;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE Investment.sp_CreateEPFAccount
+ @UserId BIGINT,@UAN NVARCHAR(20)=NULL,@EstablishmentCode NVARCHAR(20)=NULL,@EmployerName NVARCHAR(300)=NULL,
+ @EmployeeContributionPct DECIMAL(5,2),@EmployerContributionPct DECIMAL(5,2),@MonthlySalary DECIMAL(18,2),
+ @CurrentBalance DECIMAL(18,2),@InterestRate DECIMAL(8,4),@StartDate DATE,@Id BIGINT OUTPUT
+AS
+BEGIN
+ SET NOCOUNT ON;
+ IF EXISTS(SELECT 1 FROM Investment.EPFAccounts WHERE UserId=@UserId AND IsActive=1) THROW 50005,'An active EPF account already exists.',1;
+ INSERT Investment.EPFAccounts(UserId,UAN,EstablishmentCode,EmployerName,EmployeeContributionPct,EmployerContributionPct,MonthlySalary,CurrentBalance,InterestRate,StartDate)
+ VALUES(@UserId,@UAN,@EstablishmentCode,@EmployerName,@EmployeeContributionPct,@EmployerContributionPct,@MonthlySalary,@CurrentBalance,@InterestRate,@StartDate);
+ SET @Id=SCOPE_IDENTITY();
+END;
+GO
+
+CREATE OR ALTER PROCEDURE Investment.sp_AddEPFContribution
+ @EPFAccountId BIGINT,@UserId BIGINT,@Month DATE,@MonthlySalary DECIMAL(18,2)
+AS
+BEGIN
+ SET NOCOUNT ON; SET XACT_ABORT ON;
+ SET @Month=DATEFROMPARTS(YEAR(@Month),MONTH(@Month),1);
+ IF NOT EXISTS(SELECT 1 FROM Investment.EPFAccounts WHERE Id=@EPFAccountId AND UserId=@UserId AND IsActive=1) THROW 50006,'EPF account not found.',1;
+ IF EXISTS(SELECT 1 FROM Investment.EPFContributions WHERE EPFAccountId=@EPFAccountId AND Month=@Month) THROW 50007,'Contribution already exists for this month.',1;
+ DECLARE @EmployeePct DECIMAL(5,2),@EmployerPct DECIMAL(5,2),@Rate DECIMAL(8,4),@Opening DECIMAL(18,2);
+ SELECT @EmployeePct=EmployeeContributionPct,@EmployerPct=EmployerContributionPct,@Rate=InterestRate,@Opening=CurrentBalance FROM Investment.EPFAccounts WHERE Id=@EPFAccountId;
+ DECLARE @Employee DECIMAL(18,2)=ROUND(@MonthlySalary*@EmployeePct/100,2);
+ DECLARE @Employer DECIMAL(18,2)=ROUND(@MonthlySalary*@EmployerPct/100,2);
+ DECLARE @EPS DECIMAL(18,2)=ROUND(IIF(@MonthlySalary*8.33/100>1250,1250,@MonthlySalary*8.33/100),2);
+ DECLARE @Interest DECIMAL(18,2)=ROUND((@Opening+@Employee+@Employer-@EPS)*@Rate/1200,2);
+ DECLARE @Closing DECIMAL(18,2)=@Opening+@Employee+@Employer-@EPS+@Interest;
+ INSERT Investment.EPFContributions(EPFAccountId,Month,EmployeeContribution,EmployerContribution,EPSContribution,InterestEarned,OpeningBalance,ClosingBalance)
+ VALUES(@EPFAccountId,@Month,@Employee,@Employer,@EPS,@Interest,@Opening,@Closing);
+ DECLARE @ContributionId BIGINT=SCOPE_IDENTITY();
+ UPDATE Investment.EPFAccounts SET CurrentBalance=@Closing,EPSCorpus=EPSCorpus+@EPS,MonthlySalary=@MonthlySalary,UpdatedAt=SYSUTCDATETIME() WHERE Id=@EPFAccountId;
+ SELECT Id,Month,EmployeeContribution,EmployerContribution,EPSContribution,InterestEarned,OpeningBalance,ClosingBalance FROM Investment.EPFContributions WHERE Id=@ContributionId;
+END;
+GO
 

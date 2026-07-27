@@ -3,16 +3,19 @@ using FinOS.Budget.Domain.Interfaces;
 using FinOS.Common.Exceptions;
 using FinOS.Common.Interfaces;
 using MediatR;
+using FinOS.Budget.Application.Services;
 
 namespace FinOS.Budget.Application.Commands;
 
 public class UpdateSavingsRuleCommand : IRequest<SavingsRuleDto>
 {
+    public long UserId { get; set; }
     public long SavingsRuleId { get; set; }
     public UpdateSavingsRuleRequest Request { get; set; }
 
-    public UpdateSavingsRuleCommand(long savingsRuleId, UpdateSavingsRuleRequest request)
+    public UpdateSavingsRuleCommand(long userId, long savingsRuleId, UpdateSavingsRuleRequest request)
     {
+        UserId = userId;
         SavingsRuleId = savingsRuleId;
         Request = request;
     }
@@ -29,8 +32,8 @@ public class UpdateSavingsRuleCommandHandler : IRequestHandler<UpdateSavingsRule
 
     public async Task<SavingsRuleDto> Handle(UpdateSavingsRuleCommand command, CancellationToken ct)
     {
-        var rule = await _savingsRuleRepository.GetByIdAsync(command.SavingsRuleId, ct)
-            ?? throw new NotFoundException(nameof(Domain.Entities.SavingsRule), command.SavingsRuleId);
+        var rule = await BudgetOwnership.GetOwnedRuleAsync(
+            _savingsRuleRepository, command.SavingsRuleId, command.UserId, ct);
 
         var req = command.Request;
         if (req.Name is not null) rule.Name = req.Name;

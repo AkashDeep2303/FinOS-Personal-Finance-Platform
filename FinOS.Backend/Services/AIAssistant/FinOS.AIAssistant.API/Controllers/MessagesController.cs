@@ -11,7 +11,7 @@ namespace FinOS.AIAssistant.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class MessagesController : ControllerBase
+public class MessagesController : AuthenticatedControllerBase
 {
     private readonly IMediator _mediator;
 
@@ -27,7 +27,7 @@ public class MessagesController : ControllerBase
     [HttpGet("recent")]
     public async Task<ActionResult<ApiResponse<List<MessageDto>>>> GetRecent([FromQuery] long userId, [FromQuery] int count = 10)
     {
-        var result = await _mediator.Send(new GetRecentQueriesQuery(userId, count));
+        var result = await _mediator.Send(new GetRecentQueriesQuery(AuthenticatedUserId, count));
         return Ok(ApiResponse<List<MessageDto>>.Ok(result));
     }
 }

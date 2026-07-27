@@ -13,6 +13,7 @@ public class CategoryDto
     public bool IsSystem { get; set; }
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
+    public string CashFlowClassification { get; set; } = "Other";
     public DateTime CreatedAt { get; set; }
     public List<CategoryDto> Children { get; set; } = new();
 }
@@ -26,6 +27,7 @@ public class CreateCategoryRequest
     public string? Color { get; set; }
     public decimal BudgetAmount { get; set; }
     public int SortOrder { get; set; }
+    public string CashFlowClassification { get; set; } = "Other";
 }
 
 public class UpdateCategoryRequest
@@ -36,4 +38,5 @@ public class UpdateCategoryRequest
     public decimal BudgetAmount { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
+    public string CashFlowClassification { get; set; } = "Other";
 }

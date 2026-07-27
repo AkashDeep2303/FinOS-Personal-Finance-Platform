@@ -3,16 +3,19 @@ using FinOS.Budget.Domain.Enums;
 using FinOS.Budget.Domain.Interfaces;
 using FinOS.Common.Interfaces;
 using MediatR;
+using FinOS.Budget.Application.Services;
 
 namespace FinOS.Budget.Application.Commands;
 
 public class UpdateBudgetSpentCommand : IRequest<Unit>
 {
+    public long UserId { get; set; }
     public long BudgetId { get; set; }
     public List<CategorySpentUpdate> Updates { get; set; }
 
-    public UpdateBudgetSpentCommand(long budgetId, List<CategorySpentUpdate> updates)
+    public UpdateBudgetSpentCommand(long userId, long budgetId, List<CategorySpentUpdate> updates)
     {
+        UserId = userId;
         BudgetId = budgetId;
         Updates = updates;
     }
@@ -39,8 +42,8 @@ public class UpdateBudgetSpentCommandHandler : IRequestHandler<UpdateBudgetSpent
 
     public async Task<Unit> Handle(UpdateBudgetSpentCommand command, CancellationToken ct)
     {
-        var budget = await _budgetRepository.GetWithCategoriesAsync(command.BudgetId, ct);
-        if (budget == null) return Unit.Value;
+        var budget = await BudgetOwnership.GetOwnedAsync(
+            _budgetRepository, command.BudgetId, command.UserId, ct, includeCategories: true);
 
         foreach (var update in command.Updates)
         {

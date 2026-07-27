@@ -35,14 +35,16 @@ public class ProcessSIPInstallmentsCommandHandler : IRequestHandler<ProcessSIPIn
 
         foreach (var sip in dueSIPs)
         {
-            var holding = await _holdingRepository.GetByIdAsync(sip.HoldingId, ct);
+            if (!sip.HoldingId.HasValue) continue;
+            var holdingId = sip.HoldingId.Value;
+            var holding = await _holdingRepository.GetByIdAsync(holdingId, ct);
             if (holding == null || !holding.IsActive) continue;
 
             var units = sip.Amount / holding.CurrentPrice;
 
             var transaction = new InvestmentTransaction
             {
-                HoldingId = sip.HoldingId,
+                HoldingId = holdingId,
                 TransactionType = TransactionType.SIP,
                 Quantity = units,
                 PricePerUnit = holding.CurrentPrice,

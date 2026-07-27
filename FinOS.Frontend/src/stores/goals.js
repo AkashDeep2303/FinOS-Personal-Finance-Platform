@@ -17,6 +17,7 @@ export const useGoalsStore = defineStore('goals', {
   state: () => ({
     goals: [],
     currentGoal: null,
+    fundingAnalysis: null,
     loading: false,
     error: null
   }),
@@ -44,13 +45,27 @@ export const useGoalsStore = defineStore('goals', {
   },
 
   actions: {
+    async fetchFundingAnalysis(availableMonthlySurplus) {
+      this.loading = true
+      this.error = null
+      try {
+        const response = await goalsApi.getFundingAnalysis(availableMonthlySurplus)
+        this.fundingAnalysis = response.data?.data ?? null
+        return this.fundingAnalysis
+      } catch (err) {
+        this.error = err.response?.data?.message || 'Failed to analyze goal funding'
+        throw err
+      } finally {
+        this.loading = false
+      }
+    },
     async fetchGoals() {
       this.loading = true
       this.error = null
       try {
         const userId = currentUserId()
         if (!userId) throw new Error('No authenticated user is available')
-        const response = await goalsApi.getAll(userId)
+        const response = await goalsApi.getAll()
         const statuses = ['Active', 'Paused', 'Completed', 'Cancelled']
         const priorities = ['Low', 'Medium', 'High', 'Critical']
         this.goals = Array.isArray(response.data?.data)
@@ -70,7 +85,6 @@ export const useGoalsStore = defineStore('goals', {
         const priorities = { Low: 0, Medium: 1, High: 2, Critical: 3 }
         const categories = { 'Emergency Fund': 'Emergency', Vacation: 'Travel', Home: 'Purchase', Car: 'Purchase', Wedding: 'Wedding', Education: 'Education', Retirement: 'Retirement', Gadget: 'Purchase', Other: 'Other' }
         const response = await goalsApi.create({
-          userId: currentUserId(),
           goalTemplateId: null,
           name: goalData.name,
           description: null,

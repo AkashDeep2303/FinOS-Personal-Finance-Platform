@@ -72,6 +72,22 @@ BEGIN
             RETURN;
         END
 
+        IF @Categories IS NOT NULL AND EXISTS
+        (
+            SELECT 1
+            FROM OPENJSON(@Categories)
+            WITH (CategoryId BIGINT N'$.CategoryId') requested
+            LEFT JOIN Core.Categories category
+              ON category.Id = requested.CategoryId
+             AND category.IsActive = 1
+             AND (category.IsSystem = 1 OR category.UserId = @UserId)
+            WHERE requested.CategoryId IS NOT NULL AND category.Id IS NULL
+        )
+        BEGIN
+            RAISERROR('One or more budget categories are unavailable for this user.', 16, 1);
+            RETURN;
+        END
+
         -- Insert the budget
         INSERT INTO Budget.Budgets
         (

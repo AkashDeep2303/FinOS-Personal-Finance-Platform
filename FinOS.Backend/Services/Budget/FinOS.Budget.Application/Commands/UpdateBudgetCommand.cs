@@ -4,16 +4,19 @@ using FinOS.Budget.Domain.Interfaces;
 using FinOS.Common.Exceptions;
 using FinOS.Common.Interfaces;
 using MediatR;
+using FinOS.Budget.Application.Services;
 
 namespace FinOS.Budget.Application.Commands;
 
 public class UpdateBudgetCommand : IRequest<BudgetDto>
 {
+    public long UserId { get; set; }
     public long BudgetId { get; set; }
     public UpdateBudgetRequest Request { get; set; }
 
-    public UpdateBudgetCommand(long budgetId, UpdateBudgetRequest request)
+    public UpdateBudgetCommand(long userId, long budgetId, UpdateBudgetRequest request)
     {
+        UserId = userId;
         BudgetId = budgetId;
         Request = request;
     }
@@ -34,8 +37,8 @@ public class UpdateBudgetCommandHandler : IRequestHandler<UpdateBudgetCommand, B
 
     public async Task<BudgetDto> Handle(UpdateBudgetCommand command, CancellationToken ct)
     {
-        var budget = await _budgetRepository.GetWithCategoriesAsync(command.BudgetId, ct)
-            ?? throw new NotFoundException(nameof(Domain.Entities.Budget), command.BudgetId);
+        var budget = await BudgetOwnership.GetOwnedAsync(
+            _budgetRepository, command.BudgetId, command.UserId, ct, includeCategories: true);
 
         var req = command.Request;
         if (req.Name is not null) budget.Name = req.Name;
@@ -65,7 +68,7 @@ public class UpdateBudgetCommandHandler : IRequestHandler<UpdateBudgetCommand, B
                 SortOrder = catReq.SortOrder
             }).ToList();
 
-            await _budgetRepository.ReplaceCategoriesAsync(budget.Id, newCategories, ct);
+            await _budgetRepository.ReplaceCategoriesAsync(budget.Id, command.UserId, newCategories, ct);
 
             // Reload budget with new categories
             budget = await _budgetRepository.GetWithCategoriesAsync(command.BudgetId, ct)

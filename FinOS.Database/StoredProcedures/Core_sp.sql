@@ -169,6 +169,23 @@ BEGIN
     SET NOCOUNT ON;
 
     BEGIN TRY
+        -- Backward compatibility for application builds that sent enum
+        -- ordinals instead of their persisted string values.
+        SET @Type = CASE @Type
+            WHEN N'1' THEN N'Income'
+            WHEN N'2' THEN N'Expense'
+            WHEN N'3' THEN N'Transfer'
+            ELSE @Type
+        END;
+
+        SET @Source = CASE @Source
+            WHEN N'1' THEN N'Manual'
+            WHEN N'2' THEN N'Import'
+            WHEN N'3' THEN N'Sync'
+            WHEN N'4' THEN N'AI'
+            ELSE @Source
+        END;
+
         -- Validate user
         IF NOT EXISTS (SELECT 1 FROM Security.Users WHERE Id = @UserId AND DeletedAt IS NULL)
         BEGIN
@@ -1306,6 +1323,48 @@ END;
 GO
 
 PRINT 'Core Finance stored procedures created successfully.';
+GO
+
+IF OBJECT_ID(N'Core.sp_ImportTransactions', N'P') IS NOT NULL
+    DROP PROCEDURE Core.sp_ImportTransactions;
+GO
+CREATE PROCEDURE Core.sp_ImportTransactions
+ @UserId BIGINT,@AccountId BIGINT,@FileName NVARCHAR(500),@ColumnMapping NVARCHAR(MAX),
+ @Rows NVARCHAR(MAX),@DuplicatePolicy NVARCHAR(10)
+AS
+BEGIN
+ SET NOCOUNT ON; SET XACT_ABORT ON;
+ IF @DuplicatePolicy NOT IN(N'Skip',N'Include') THROW 51000,'Duplicate policy must be Skip or Include.',1;
+ IF ISJSON(@Rows)<>1 OR ISJSON(@ColumnMapping)<>1 THROW 51000,'Import JSON is invalid.',1;
+ IF NOT EXISTS(SELECT 1 FROM Core.Accounts WHERE Id=@AccountId AND UserId=@UserId AND DeletedAt IS NULL AND IsActive=1)
+  THROW 51000,'Destination account was not found.',1;
+ DECLARE @BatchId UNIQUEIDENTIFIER=NEWID();
+ BEGIN TRANSACTION;
+ BEGIN TRY
+  CREATE TABLE #R(RowNumber INT,TransactionDate DATE,Description NVARCHAR(500),Amount DECIMAL(18,2),Type NVARCHAR(20),ReferenceNumber NVARCHAR(100),IsDuplicate BIT DEFAULT 0);
+  INSERT #R(RowNumber,TransactionDate,Description,Amount,Type,ReferenceNumber)
+  SELECT RowNumber,TransactionDate,Description,Amount,Type,ReferenceNumber FROM OPENJSON(@Rows)
+  WITH(RowNumber INT '$.RowNumber',TransactionDate DATE '$.TransactionDate',Description NVARCHAR(500) '$.Description',Amount DECIMAL(18,2) '$.Amount',Type NVARCHAR(20) '$.Type',ReferenceNumber NVARCHAR(100) '$.ReferenceNumber');
+  IF NOT EXISTS(SELECT 1 FROM #R) THROW 51000,'Import contains no rows.',1;
+  IF EXISTS(SELECT 1 FROM #R WHERE TransactionDate IS NULL OR Description IS NULL OR LTRIM(RTRIM(Description))=N'' OR Amount IS NULL OR Amount<=0 OR Type NOT IN(N'Income',N'Expense')) THROW 51000,'Import contains invalid rows.',1;
+  UPDATE r SET IsDuplicate=1 FROM #R r WHERE EXISTS(SELECT 1 FROM Core.Transactions t WHERE t.UserId=@UserId AND t.AccountId=@AccountId AND t.DeletedAt IS NULL AND((r.ReferenceNumber IS NOT NULL AND t.ReferenceNumber=r.ReferenceNumber)OR(t.TransactionDate=r.TransactionDate AND t.Amount=r.Amount AND t.Type=r.Type AND t.Description=r.Description)));
+  UPDATE r SET IsDuplicate=1 FROM #R r WHERE EXISTS(SELECT 1 FROM #R prior WHERE prior.RowNumber<r.RowNumber AND((r.ReferenceNumber IS NOT NULL AND prior.ReferenceNumber=r.ReferenceNumber)OR(r.ReferenceNumber IS NULL AND prior.ReferenceNumber IS NULL AND prior.TransactionDate=r.TransactionDate AND prior.Amount=r.Amount AND prior.Type=r.Type AND prior.Description=r.Description)));
+  DECLARE @Total INT=(SELECT COUNT(1) FROM #R),@Duplicates INT=(SELECT COUNT(1) FROM #R WHERE IsDuplicate=1);
+  INSERT Import.ImportBatches(Id,UserId,Source,FileName,TotalRows,ProcessedRows,SuccessRows,FailedRows,DuplicateRows,Status,ColumnMapping,StartedAt,CompletedAt)
+  VALUES(@BatchId,@UserId,N'CSV',@FileName,@Total,@Total,CASE WHEN @DuplicatePolicy=N'Skip' THEN @Total-@Duplicates ELSE @Total END,0,@Duplicates,N'Completed',@ColumnMapping,SYSUTCDATETIME(),SYSUTCDATETIME());
+  INSERT Core.Transactions(UserId,AccountId,Type,Amount,Currency,Description,TransactionDate,ReferenceNumber,Source,ImportBatchId,IsVerified,VerifiedAt)
+  SELECT @UserId,@AccountId,Type,Amount,N'INR',Description,TransactionDate,ReferenceNumber,N'Import',@BatchId,1,SYSUTCDATETIME() FROM #R WHERE @DuplicatePolicy=N'Include' OR IsDuplicate=0;
+  DECLARE @Imported INT=@@ROWCOUNT,@Delta DECIMAL(18,2)=(SELECT COALESCE(SUM(CASE WHEN Type=N'Income' THEN Amount ELSE -Amount END),0) FROM #R WHERE @DuplicatePolicy=N'Include' OR IsDuplicate=0);
+  UPDATE Core.Accounts SET Balance=Balance+@Delta,UpdatedAt=SYSUTCDATETIME() WHERE Id=@AccountId AND UserId=@UserId;
+  INSERT Security.AuditLog(UserId,ActionType,EntityType,EntityId)VALUES(@UserId,N'IMPORT',N'ImportBatch',CONVERT(NVARCHAR(36),@BatchId));
+  COMMIT;
+  SELECT @BatchId BatchId,@Total TotalRows,@Imported ImportedRows,@Duplicates DuplicateRows,@Delta BalanceDelta;
+ END TRY
+ BEGIN CATCH
+  IF @@TRANCOUNT>0 ROLLBACK;
+  THROW;
+ END CATCH
+END;
 GO
 
 

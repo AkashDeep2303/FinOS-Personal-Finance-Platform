@@ -11,7 +11,7 @@ namespace FinOS.Loan.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class PrepaymentController : ControllerBase
+public class PrepaymentController : AuthenticatedControllerBase
 {
     private readonly IMediator _mediator;
 
@@ -20,21 +20,21 @@ public class PrepaymentController : ControllerBase
     [HttpPost("simulate")]
     public async Task<ActionResult<ApiResponse<PrepaymentSimulationDto>>> Simulate([FromBody] SimulatePrepaymentRequest request)
     {
-        var result = await _mediator.Send(new SimulatePrepaymentCommand(request));
+        var result = await _mediator.Send(new SimulatePrepaymentCommand(AuthenticatedUserId, request));
         return Ok(ApiResponse<PrepaymentSimulationDto>.Ok(result));
     }
 
     [HttpPost("execute")]
     public async Task<ActionResult<ApiResponse<LoanPrepaymentDto>>> Execute([FromBody] ExecutePrepaymentRequest request)
     {
-        var result = await _mediator.Send(new ExecutePrepaymentCommand(request));
+        var result = await _mediator.Send(new ExecutePrepaymentCommand(AuthenticatedUserId, request));
         return Ok(ApiResponse<LoanPrepaymentDto>.Ok(result, "Prepayment executed successfully"));
     }
 
     [HttpGet("loan/{loanId}/history")]
     public async Task<ActionResult<ApiResponse<List<LoanPrepaymentDto>>>> GetHistory(long loanId)
     {
-        var result = await _mediator.Send(new GetPrepaymentHistoryQuery(loanId));
+        var result = await _mediator.Send(new GetPrepaymentHistoryQuery(AuthenticatedUserId, loanId));
         return Ok(ApiResponse<List<LoanPrepaymentDto>>.Ok(result));
     }
 }

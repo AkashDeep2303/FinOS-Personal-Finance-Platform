@@ -88,6 +88,8 @@ BEGIN
           AND h.DeletedAt IS NULL
           AND h.IsActive = 1
           AND it.Name = N'RealEstate';
+        SELECT @RealEstateValue = @RealEstateValue + ISNULL(SUM(CurrentEstimatedValue), 0)
+        FROM Core.Assets WHERE UserId=@UserId AND AssetType=N'Property' AND DeletedAt IS NULL;
 
         -- Other assets (FD, PPF, NPS, Bonds, Crypto)
         DECLARE @OtherAssets DECIMAL(18,2) = 0;
@@ -100,6 +102,8 @@ BEGIN
           AND h.DeletedAt IS NULL
           AND h.IsActive = 1
           AND it.Name NOT IN (N'Gold', N'RealEstate', N'MutualFund', N'Stock');
+        SELECT @OtherAssets = @OtherAssets + ISNULL(SUM(CurrentEstimatedValue), 0)
+        FROM Core.Assets WHERE UserId=@UserId AND AssetType<>N'Property' AND DeletedAt IS NULL;
 
         -- ---------------------------------------------------------------
         -- Calculate Liabilities

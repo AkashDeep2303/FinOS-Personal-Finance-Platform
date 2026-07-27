@@ -61,6 +61,52 @@ END
 GO
 
 -- ---------------------------------------------------------------------------
+-- Table: PortfolioTargetAllocations
+-- ---------------------------------------------------------------------------
+IF OBJECT_ID(N'Investment.PortfolioTargetAllocations', N'U') IS NULL
+BEGIN
+    CREATE TABLE Investment.PortfolioTargetAllocations
+    (
+        Id          BIGINT IDENTITY(1,1) NOT NULL,
+        PortfolioId BIGINT NOT NULL,
+        AssetClass  NVARCHAR(30) NOT NULL,
+        TargetPct   DECIMAL(5,2) NOT NULL,
+        CreatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt   DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+
+        CONSTRAINT PK_PortfolioTargetAllocations PRIMARY KEY CLUSTERED (Id) ON FinOS_Data,
+        CONSTRAINT FK_PortfolioTargetAllocations_Portfolios FOREIGN KEY (PortfolioId)
+            REFERENCES Investment.Portfolios (Id) ON DELETE CASCADE,
+        CONSTRAINT UQ_PortfolioTargetAllocations UNIQUE NONCLUSTERED (PortfolioId, AssetClass) ON FinOS_Index,
+        CONSTRAINT CK_PortfolioTargetAllocations_Pct CHECK (TargetPct >= 0 AND TargetPct <= 100)
+    );
+END
+GO
+
+-- ---------------------------------------------------------------------------
+-- Table: PortfolioValueSnapshots
+-- ---------------------------------------------------------------------------
+IF OBJECT_ID(N'Investment.PortfolioValueSnapshots', N'U') IS NULL
+BEGIN
+    CREATE TABLE Investment.PortfolioValueSnapshots
+    (
+        Id              BIGINT IDENTITY(1,1) NOT NULL,
+        PortfolioId     BIGINT NOT NULL,
+        SnapshotDate    DATE NOT NULL,
+        InvestedValue   DECIMAL(18,2) NOT NULL,
+        CurrentValue    DECIMAL(18,2) NOT NULL,
+        UnrealizedGain  DECIMAL(18,2) NOT NULL,
+        CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+
+        CONSTRAINT PK_PortfolioValueSnapshots PRIMARY KEY CLUSTERED (Id) ON FinOS_Data,
+        CONSTRAINT FK_PortfolioValueSnapshots_Portfolios FOREIGN KEY (PortfolioId)
+            REFERENCES Investment.Portfolios (Id) ON DELETE CASCADE,
+        CONSTRAINT UQ_PortfolioValueSnapshots_Date UNIQUE NONCLUSTERED (PortfolioId, SnapshotDate) ON FinOS_Index
+    );
+END
+GO
+
+-- ---------------------------------------------------------------------------
 -- Table: Holdings (all investment holdings)
 -- ---------------------------------------------------------------------------
 IF OBJECT_ID(N'Investment.Holdings', N'U') IS NULL
@@ -128,6 +174,8 @@ BEGIN
         Charges             DECIMAL(18,2)                   NOT NULL DEFAULT 0,  -- Brokerage, STT, etc.
         STT                 DECIMAL(18,2)                   NOT NULL DEFAULT 0,
         StampDuty           DECIMAL(18,2)                   NOT NULL DEFAULT 0,
+        CostBasis           DECIMAL(18,2)                   NULL,
+        RealizedGain        DECIMAL(18,2)                   NULL,
         TransactionDate     DATE                            NOT NULL,
         SettlementDate      DATE                            NULL,
         SIPId               BIGINT                          NULL,      -- Link to SIP schedule
@@ -142,6 +190,13 @@ BEGIN
     CREATE NONCLUSTERED INDEX IX_InvestmentTransactions_HoldingId
         ON Investment.Transactions (HoldingId, TransactionDate DESC) ON FinOS_Index;
 END
+GO
+
+IF COL_LENGTH(N'Investment.Transactions', N'CostBasis') IS NULL
+    ALTER TABLE Investment.Transactions ADD CostBasis DECIMAL(18,2) NULL;
+GO
+IF COL_LENGTH(N'Investment.Transactions', N'RealizedGain') IS NULL
+    ALTER TABLE Investment.Transactions ADD RealizedGain DECIMAL(18,2) NULL;
 GO
 
 -- ---------------------------------------------------------------------------

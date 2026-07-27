@@ -120,15 +120,17 @@ public static class FinancialCalculator
             return principal / termInMonths;
         }
 
-        decimal monthlyRate = annualRate / 12;
+        // Use the algebraically equivalent inverse-power form so long terms
+        // do not overflow Decimal while calculating (1 + rate)^term.
+        var monthlyRate = (double)(annualRate / 12m);
+        var discountFactor = Math.Pow(1d + monthlyRate, -termInMonths);
+        var denominator = 1d - discountFactor;
+        var emi = (double)principal * monthlyRate / denominator;
 
-        decimal factor = 1m;
-        for (int i = 0; i < termInMonths; i++)
-        {
-            factor *= (1 + monthlyRate);
-        }
+        if (!double.IsFinite(emi) || emi <= 0d || emi > (double)decimal.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(annualRate), "The rate and term produce an unsupported EMI.");
 
-        return principal * monthlyRate * factor / (factor - 1);
+        return (decimal)emi;
     }
 
     /// <summary>
@@ -147,14 +149,12 @@ public static class FinancialCalculator
     /// </summary>
     public static decimal PresentValue(decimal futureValue, decimal annualRate, decimal timeInYears)
     {
+        if (futureValue < 0) throw new ArgumentException("Future value cannot be negative.", nameof(futureValue));
         if (annualRate < 0) throw new ArgumentException("Rate cannot be negative.", nameof(annualRate));
+        if (timeInYears < 0) throw new ArgumentException("Time cannot be negative.", nameof(timeInYears));
 
-        decimal discountFactor = 1m;
-        for (int i = 0; i < timeInYears; i++)
-        {
-            discountFactor *= (1 + annualRate);
-        }
-        return futureValue / discountFactor;
+        var discountFactor = (decimal)Math.Pow((double)(1m + annualRate), (double)timeInYears);
+        return RoundMoney(futureValue / discountFactor);
     }
 
     /// <summary>
@@ -283,6 +283,49 @@ public static class FinancialCalculator
         return rate;
     }
 
+    /// <summary>
+    /// Calculates XIRR while preserving decimal cash-flow amounts and reporting convergence failure.
+    /// </summary>
+    public static decimal ExtendedInternalRateOfReturn(
+        IReadOnlyCollection<(DateTime Date, decimal Amount)> cashFlows,
+        decimal guess = 0.10m,
+        int maxIterations = 100,
+        decimal tolerance = 0.00000001m)
+    {
+        if (cashFlows is null || cashFlows.Count < 2)
+            throw new ArgumentException("At least two cash flows are required.", nameof(cashFlows));
+        if (!cashFlows.Any(x => x.Amount < 0) || !cashFlows.Any(x => x.Amount > 0))
+            throw new ArgumentException("Cash flows must contain at least one inflow and one outflow.", nameof(cashFlows));
+        if (guess <= -1m) throw new ArgumentException("Guess must be greater than -100%.", nameof(guess));
+
+        var firstDate = cashFlows.Min(x => x.Date);
+        var rate = guess;
+        for (var iteration = 0; iteration < maxIterations; iteration++)
+        {
+            decimal value = 0;
+            decimal derivative = 0;
+            foreach (var cashFlow in cashFlows)
+            {
+                var years = (decimal)(cashFlow.Date - firstDate).TotalDays / 365m;
+                var factor = (decimal)Math.Pow((double)(1m + rate), (double)years);
+                value += cashFlow.Amount / factor;
+                derivative -= cashFlow.Amount * years /
+                    (decimal)Math.Pow((double)(1m + rate), (double)(years + 1m));
+            }
+
+            if (Math.Abs(value) <= tolerance) return Math.Round(rate, 8, MidpointRounding.ToEven);
+            if (Math.Abs(derivative) <= tolerance)
+                throw new InvalidOperationException("XIRR could not converge because the derivative approached zero.");
+
+            var next = rate - value / derivative;
+            if (next <= -1m) next = (rate - 1m) / 2m;
+            if (Math.Abs(next - rate) <= tolerance) return Math.Round(next, 8, MidpointRounding.ToEven);
+            rate = next;
+        }
+
+        throw new InvalidOperationException("XIRR did not converge within the configured iteration limit.");
+    }
+
     // ── Compound Interest with Regular Contributions (SIP-style) ───────
 
     /// <summary>
@@ -344,5 +387,173 @@ public static class FinancialCalculator
     {
         if (whole == 0) throw new ArgumentException("Whole cannot be zero.", nameof(whole));
         return part / whole;
+    }
+
+    /// <summary>Calculates net worth as assets less liabilities.</summary>
+    public static decimal NetWorth(decimal totalAssets, decimal totalLiabilities)
+    {
+        if (totalAssets < 0) throw new ArgumentException("Assets cannot be negative.", nameof(totalAssets));
+        if (totalLiabilities < 0) throw new ArgumentException("Liabilities cannot be negative.", nameof(totalLiabilities));
+        return RoundMoney(totalAssets - totalLiabilities);
+    }
+
+    /// <summary>Calculates savings as a proportion of income.</summary>
+    public static decimal SavingsRate(decimal income, decimal expenses)
+    {
+        if (income < 0) throw new ArgumentException("Income cannot be negative.", nameof(income));
+        if (expenses < 0) throw new ArgumentException("Expenses cannot be negative.", nameof(expenses));
+        return income == 0 ? 0 : Math.Round((income - expenses) / income, 6, MidpointRounding.ToEven);
+    }
+
+    /// <summary>Calculates monthly debt obligations as a proportion of gross monthly income.</summary>
+    public static decimal DebtToIncomeRatio(decimal monthlyDebtPayments, decimal grossMonthlyIncome)
+    {
+        if (monthlyDebtPayments < 0) throw new ArgumentException("Debt payments cannot be negative.", nameof(monthlyDebtPayments));
+        if (grossMonthlyIncome < 0) throw new ArgumentException("Income cannot be negative.", nameof(grossMonthlyIncome));
+        return grossMonthlyIncome == 0 ? 0 : Math.Round(monthlyDebtPayments / grossMonthlyIncome, 6, MidpointRounding.ToEven);
+    }
+
+    /// <summary>Calculates the number of months covered by liquid emergency funds.</summary>
+    public static decimal EmergencyFundCoverage(decimal liquidEmergencyFunds, decimal essentialMonthlyExpenses)
+    {
+        if (liquidEmergencyFunds < 0) throw new ArgumentException("Emergency funds cannot be negative.", nameof(liquidEmergencyFunds));
+        if (essentialMonthlyExpenses < 0) throw new ArgumentException("Essential expenses cannot be negative.", nameof(essentialMonthlyExpenses));
+        return essentialMonthlyExpenses == 0 ? 0 : Math.Round(liquidEmergencyFunds / essentialMonthlyExpenses, 2, MidpointRounding.ToEven);
+    }
+
+    /// <summary>
+    /// Calculates credit-card payoff duration and interest using a fixed
+    /// month-end payment. The annual rate is an absolute decimal.
+    /// </summary>
+    public static (int Months, decimal TotalInterest) CreditCardPayoff(
+        decimal balance, decimal annualRate, decimal monthlyPayment, int maximumMonths = 1200)
+    {
+        if (balance <= 0) throw new ArgumentException("Balance must be positive.", nameof(balance));
+        if (annualRate < 0) throw new ArgumentException("Rate cannot be negative.", nameof(annualRate));
+        if (monthlyPayment <= 0) throw new ArgumentException("Payment must be positive.", nameof(monthlyPayment));
+        if (maximumMonths <= 0) throw new ArgumentException("Maximum months must be positive.", nameof(maximumMonths));
+
+        var monthlyRate = annualRate / 12m;
+        if (monthlyRate > 0 && monthlyPayment <= balance * monthlyRate)
+            throw new ArgumentException("Payment must exceed the first month's interest.", nameof(monthlyPayment));
+
+        var remaining = balance;
+        var interestPaid = 0m;
+        var months = 0;
+        while (remaining > 0.005m && months < maximumMonths)
+        {
+            var interest = RoundMoney(remaining * monthlyRate);
+            interestPaid += interest;
+            remaining = Math.Max(0, remaining + interest - monthlyPayment);
+            months++;
+        }
+
+        if (remaining > 0.005m)
+            throw new InvalidOperationException("Balance does not amortize within the configured maximum duration.");
+        return (months, RoundMoney(interestPaid));
+    }
+
+    /// <summary>Calculates compound annual growth rate using decimal rate output.</summary>
+    public static decimal CompoundAnnualGrowthRate(decimal beginningValue, decimal endingValue, decimal years)
+    {
+        if (beginningValue <= 0) throw new ArgumentException("Beginning value must be positive.", nameof(beginningValue));
+        if (endingValue < 0) throw new ArgumentException("Ending value cannot be negative.", nameof(endingValue));
+        if (years <= 0) throw new ArgumentException("Years must be positive.", nameof(years));
+        if (endingValue == 0) return -1m;
+
+        var rate = Math.Pow((double)(endingValue / beginningValue), 1d / (double)years) - 1d;
+        return Math.Round((decimal)rate, 8, MidpointRounding.ToEven);
+    }
+
+    /// <summary>
+    /// Calculates the monthly contribution required to reach a future target.
+    /// The annual return is an absolute decimal and contributions occur at month end.
+    /// </summary>
+    public static decimal RequiredMonthlyContribution(
+        decimal targetAmount,
+        decimal currentAmount,
+        decimal annualRate,
+        int months)
+    {
+        if (targetAmount < 0) throw new ArgumentException("Target cannot be negative.", nameof(targetAmount));
+        if (currentAmount < 0) throw new ArgumentException("Current amount cannot be negative.", nameof(currentAmount));
+        if (annualRate < 0) throw new ArgumentException("Rate cannot be negative.", nameof(annualRate));
+        if (months <= 0) throw new ArgumentException("Months must be positive.", nameof(months));
+
+        var monthlyRate = annualRate / 12m;
+        var growthFactor = 1m;
+        for (var month = 0; month < months; month++) growthFactor *= 1m + monthlyRate;
+
+        var remainingFutureValue = targetAmount - (currentAmount * growthFactor);
+        if (remainingFutureValue <= 0) return 0;
+        if (monthlyRate == 0) return RoundMoney(remainingFutureValue / months);
+
+        var annuityFactor = (growthFactor - 1m) / monthlyRate;
+        return RoundMoney(remainingFutureValue / annuityFactor);
+    }
+
+    /// <summary>
+    /// Calculates the future value of an opening corpus plus month-end contributions.
+    /// The annual return is an absolute decimal.
+    /// </summary>
+    public static decimal FutureValueWithMonthlyContributions(
+        decimal openingCorpus,
+        decimal monthlyContribution,
+        decimal annualRate,
+        int months)
+    {
+        if (openingCorpus < 0) throw new ArgumentException("Opening corpus cannot be negative.", nameof(openingCorpus));
+        if (monthlyContribution < 0) throw new ArgumentException("Contribution cannot be negative.", nameof(monthlyContribution));
+        if (annualRate < 0) throw new ArgumentException("Rate cannot be negative.", nameof(annualRate));
+        if (months < 0) throw new ArgumentException("Months cannot be negative.", nameof(months));
+
+        var monthlyRate = annualRate / 12m;
+        var balance = openingCorpus;
+        for (var month = 0; month < months; month++)
+            balance = balance * (1m + monthlyRate) + monthlyContribution;
+
+        return RoundMoney(balance);
+    }
+
+    /// <summary>Inflates a present amount over a number of years.</summary>
+    public static decimal InflationAdjustedValue(decimal presentValue, decimal annualInflation, int years)
+    {
+        if (presentValue < 0) throw new ArgumentException("Present value cannot be negative.", nameof(presentValue));
+        if (annualInflation < 0) throw new ArgumentException("Inflation cannot be negative.", nameof(annualInflation));
+        if (years < 0) throw new ArgumentException("Years cannot be negative.", nameof(years));
+
+        var value = presentValue;
+        for (var year = 0; year < years; year++) value *= 1m + annualInflation;
+        return RoundMoney(value);
+    }
+
+    /// <summary>
+    /// Calculates the corpus required at retirement to fund month-end expenses for a fixed duration.
+    /// Returns are nominal absolute decimals and expenses rise with inflation.
+    /// </summary>
+    public static decimal RetirementCorpus(
+        decimal firstMonthlyExpense,
+        decimal annualPostRetirementReturn,
+        decimal annualInflation,
+        int retirementMonths)
+    {
+        if (firstMonthlyExpense < 0) throw new ArgumentException("Expense cannot be negative.", nameof(firstMonthlyExpense));
+        if (annualPostRetirementReturn < 0) throw new ArgumentException("Return cannot be negative.", nameof(annualPostRetirementReturn));
+        if (annualInflation < 0) throw new ArgumentException("Inflation cannot be negative.", nameof(annualInflation));
+        if (retirementMonths <= 0) throw new ArgumentException("Retirement duration must be positive.", nameof(retirementMonths));
+
+        var monthlyReturn = annualPostRetirementReturn / 12m;
+        var monthlyInflation = annualInflation / 12m;
+        var corpus = 0m;
+        var expense = firstMonthlyExpense;
+        var discountFactor = 1m;
+        for (var month = 1; month <= retirementMonths; month++)
+        {
+            discountFactor *= 1m + monthlyReturn;
+            corpus += expense / discountFactor;
+            expense *= 1m + monthlyInflation;
+        }
+
+        return RoundMoney(corpus);
     }
 }

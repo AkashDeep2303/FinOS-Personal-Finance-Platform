@@ -8,10 +8,12 @@ namespace FinOS.Investment.Application.Queries;
 public class GetEPFStatementQuery : IRequest<List<EPFContributionDto>>
 {
     public long EPFAccountId { get; set; }
+    public long UserId { get; set; }
 
-    public GetEPFStatementQuery(long epfAccountId)
+    public GetEPFStatementQuery(long epfAccountId, long userId)
     {
         EPFAccountId = epfAccountId;
+        UserId = userId;
     }
 }
 
@@ -28,6 +30,7 @@ public class GetEPFStatementQueryHandler : IRequestHandler<GetEPFStatementQuery,
     {
         var account = await _epfRepository.GetWithContributionsAsync(query.EPFAccountId, ct)
             ?? throw new NotFoundException(nameof(Domain.Entities.EPFAccount), query.EPFAccountId);
+        if (account.UserId != query.UserId) throw new UnauthorizedAccessException();
 
         return account.Contributions
             .OrderBy(c => c.Month)

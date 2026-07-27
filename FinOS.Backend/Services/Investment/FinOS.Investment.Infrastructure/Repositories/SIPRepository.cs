@@ -8,185 +8,43 @@ namespace FinOS.Investment.Infrastructure.Repositories;
 
 public class SIPRepository : ISIPRepository
 {
-    private readonly IConnectionFactory _connectionFactory;
+    private readonly IConnectionFactory _factory;
+    public SIPRepository(IConnectionFactory factory) => _factory = factory;
 
-    public SIPRepository(IConnectionFactory connectionFactory)
+    private async Task<List<SIP>> QueryAsync(string where, object? args = null)
     {
-        _connectionFactory = connectionFactory;
+        using var db = _factory.CreateConnection();
+        var sql = $@"SELECT s.*, h.* FROM Investment.SIPs s
+LEFT JOIN Investment.Holdings h ON h.Id=s.HoldingId WHERE {where} ORDER BY s.CreatedAt DESC";
+        var map = new Dictionary<long,SIP>();
+        await db.QueryAsync<SIP,Holding,SIP>(sql,(s,h)=>{
+            if(!map.TryGetValue(s.Id,out var item)){ item=s; item.Holding=h?.Id>0?h:null; map[s.Id]=item; }
+            return item;
+        },args,splitOn:"Id");
+        return map.Values.ToList();
     }
 
-    public async Task<SIP?> GetByIdAsync(long id, CancellationToken ct = default)
+    public async Task<SIP?> GetByIdAsync(long id, CancellationToken ct=default) => (await QueryAsync("s.Id=@Id",new{Id=id})).FirstOrDefault();
+    public Task<List<SIP>> GetByUserIdAsync(long userId,CancellationToken ct=default)=>QueryAsync("s.UserId=@UserId",new{UserId=userId});
+    public Task<List<SIP>> GetActiveSIPsAsync(CancellationToken ct=default)=>QueryAsync("s.IsActive=1");
+    public Task<List<SIP>> GetDueSIPsAsync(DateTime asOfDate,CancellationToken ct=default)=>QueryAsync("s.IsActive=1 AND s.NextExecutionDate<=@AsOfDate",new{AsOfDate=asOfDate});
+
+    public async Task<long> CreateAsync(long userId,string name,long? holdingId,decimal amount,string frequency,int dayOfMonth,DateTime startDate,DateTime? endDate,long sourceAccountId,CancellationToken ct=default)
     {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = @"
-            SELECT s.*, h.* 
-            FROM [Investment].[SIPs] s
-            LEFT JOIN [Investment].[Holdings] h ON s.HoldingId = h.Id
-            WHERE s.Id = @Id";
-
-        var sipDict = new Dictionary<long, SIP>();
-        var result = await connection.QueryAsync<SIP, Holding, SIP>(sql,
-            (sip, holding) =>
-            {
-                if (!sipDict.TryGetValue(sip.Id, out var existingSip))
-                {
-                    existingSip = sip;
-                    sipDict.Add(sip.Id, existingSip);
-                }
-                existingSip.Holding = holding;
-                return existingSip;
-            },
-            new { Id = id }, splitOn: "Id");
-
-        return sipDict.Values.FirstOrDefault();
+        using var db=_factory.CreateConnection(); var p=new DynamicParameters(new{UserId=userId,SIPName=name,HoldingId=holdingId,Amount=amount,Frequency=frequency,DayOfMonth=dayOfMonth,StartDate=startDate,EndDate=endDate,SourceAccountId=sourceAccountId});
+        p.Add("Id",dbType:System.Data.DbType.Int64,direction:System.Data.ParameterDirection.Output);
+        await db.ExecuteAsync("Investment.sp_CreateSIP",p,commandType:System.Data.CommandType.StoredProcedure); return p.Get<long>("Id");
     }
+    public async Task UpdateAsync(long id,long userId,string name,long? holdingId,decimal amount,string frequency,int dayOfMonth,DateTime startDate,DateTime? endDate,long sourceAccountId,CancellationToken ct=default)
+    { using var db=_factory.CreateConnection(); await db.ExecuteAsync("Investment.sp_UpdateSIP",new{Id=id,UserId=userId,SIPName=name,HoldingId=holdingId,Amount=amount,Frequency=frequency,DayOfMonth=dayOfMonth,StartDate=startDate,EndDate=endDate,SourceAccountId=sourceAccountId},commandType:System.Data.CommandType.StoredProcedure); }
+    public async Task SetStatusAsync(long id,long userId,bool isActive,CancellationToken ct=default)
+    { using var db=_factory.CreateConnection(); await db.ExecuteAsync("Investment.sp_SetSIPStatus",new{Id=id,UserId=userId,IsActive=isActive},commandType:System.Data.CommandType.StoredProcedure); }
+    public async Task DeleteAsync(long id,long userId,CancellationToken ct=default)
+    { using var db=_factory.CreateConnection(); await db.ExecuteAsync("Investment.sp_DeleteSIP",new{Id=id,UserId=userId},commandType:System.Data.CommandType.StoredProcedure); }
 
-    public async Task<PagedResult<SIP>> PagedAsync(PagedQuery query, string schema, string tableName, string whereClause = "", object? param = null, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var where = string.IsNullOrWhiteSpace(whereClause) ? "" : $" WHERE {whereClause}";
-        var countSql = $"SELECT COUNT(*) FROM [{schema}].[{tableName}]{where}";
-        var dataSql = $"SELECT * FROM [{schema}].[{tableName}]{where} ORDER BY CreatedAt DESC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
-
-        var dp = new DynamicParameters(param);
-        dp.Add("@Offset", (query.PageNumber - 1) * query.PageSize);
-        dp.Add("@PageSize", query.PageSize);
-
-        var totalCount = await connection.ExecuteScalarAsync<int>(countSql, param);
-        var items = await connection.QueryAsync<SIP>(dataSql, dp);
-
-        return new PagedResult<SIP>
-        {
-            Items = items.ToList(),
-            TotalCount = totalCount,
-            Page = query.PageNumber,
-            PageSize = query.PageSize
-        };
-    }
-
-    public async Task<long> CountAsync(string schema, string tableName, string whereClause = "", object? param = null, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var where = string.IsNullOrWhiteSpace(whereClause) ? "" : $" WHERE {whereClause}";
-        return await connection.ExecuteScalarAsync<long>($"SELECT COUNT(*) FROM [{schema}].[{tableName}]{where}", param);
-    }
-
-    public async Task<List<SIP>> GetByUserIdAsync(long userId, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = @"
-            SELECT s.*, h.* 
-            FROM [Investment].[SIPs] s
-            LEFT JOIN [Investment].[Holdings] h ON s.HoldingId = h.Id
-            WHERE s.UserId = @UserId
-            ORDER BY s.CreatedAt DESC";
-
-        var sipDict = new Dictionary<long, SIP>();
-        var result = await connection.QueryAsync<SIP, Holding, SIP>(sql,
-            (sip, holding) =>
-            {
-                if (!sipDict.TryGetValue(sip.Id, out var existingSip))
-                {
-                    existingSip = sip;
-                    sipDict.Add(sip.Id, existingSip);
-                }
-                existingSip.Holding = holding;
-                return existingSip;
-            },
-            new { UserId = userId }, splitOn: "Id");
-
-        return sipDict.Values.ToList();
-    }
-
-    public async Task<List<SIP>> GetActiveSIPsAsync(CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = @"
-            SELECT s.*, h.* 
-            FROM [Investment].[SIPs] s
-            LEFT JOIN [Investment].[Holdings] h ON s.HoldingId = h.Id
-            WHERE s.IsActive = 1";
-
-        var sipDict = new Dictionary<long, SIP>();
-        var result = await connection.QueryAsync<SIP, Holding, SIP>(sql,
-            (sip, holding) =>
-            {
-                if (!sipDict.TryGetValue(sip.Id, out var existingSip))
-                {
-                    existingSip = sip;
-                    sipDict.Add(sip.Id, existingSip);
-                }
-                existingSip.Holding = holding;
-                return existingSip;
-            },
-            splitOn: "Id");
-
-        return sipDict.Values.ToList();
-    }
-
-    public async Task<List<SIP>> GetDueSIPsAsync(DateTime asOfDate, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var sql = @"
-            SELECT s.*, h.* 
-            FROM [Investment].[SIPs] s
-            LEFT JOIN [Investment].[Holdings] h ON s.HoldingId = h.Id
-            WHERE s.IsActive = 1 AND (s.NextExecutionDate IS NULL OR s.NextExecutionDate <= @AsOfDate)";
-
-        var sipDict = new Dictionary<long, SIP>();
-        var result = await connection.QueryAsync<SIP, Holding, SIP>(sql,
-            (sip, holding) =>
-            {
-                if (!sipDict.TryGetValue(sip.Id, out var existingSip))
-                {
-                    existingSip = sip;
-                    sipDict.Add(sip.Id, existingSip);
-                }
-                existingSip.Holding = holding;
-                return existingSip;
-            },
-            new { AsOfDate = asOfDate }, splitOn: "Id");
-
-        return sipDict.Values.ToList();
-    }
-
-    public async Task<long> CreateSIPAsync(long userId, long? holdingId, string sipName, decimal amount, string frequency, DateTime startDate, DateTime? endDate, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        var parameters = new DynamicParameters();
-        parameters.Add("@UserId", userId);
-        parameters.Add("@HoldingId", holdingId);
-        parameters.Add("@SIPName", sipName);
-        parameters.Add("@Amount", amount);
-        parameters.Add("@Frequency", frequency);
-        parameters.Add("@StartDate", startDate);
-        parameters.Add("@EndDate", endDate);
-        parameters.Add("@Id", dbType: System.Data.DbType.Int64, direction: System.Data.ParameterDirection.Output);
-
-        await connection.ExecuteAsync(
-            "Investment.sp_CreateSIP", parameters,
-            commandType: System.Data.CommandType.StoredProcedure);
-
-        return parameters.Get<long>("@Id");
-    }
-
-    public async Task ProcessSIPInstallmentAsync(long sipId, CancellationToken ct = default)
-    {
-        using var connection = _connectionFactory.CreateConnection();
-        await connection.ExecuteAsync(
-            "Investment.sp_ProcessSIPInstallment",
-            new { SIPId = sipId },
-            commandType: System.Data.CommandType.StoredProcedure);
-    }
-
-    public async Task<SIP> AddAsync(SIP entity, CancellationToken ct = default)
-    {
-        var id = await CreateSIPAsync(entity.UserId, entity.HoldingId, entity.Name, entity.Amount, entity.Frequency.ToString(), entity.StartDate, entity.EndDate, ct);
-        entity.Id = id;
-        return entity;
-    }
-
-    public Task UpdateAsync(SIP entity, CancellationToken ct = default) => Task.CompletedTask;
-
-    public Task RemoveAsync(SIP entity, CancellationToken ct = default) => Task.CompletedTask;
+    public async Task<SIP> AddAsync(SIP e,CancellationToken ct=default){e.Id=await CreateAsync(e.UserId,e.Name,e.HoldingId,e.Amount,e.Frequency.ToString(),e.DayOfMonth,e.StartDate,e.EndDate,e.SourceAccountId??0,ct);return e;}
+    public Task UpdateAsync(SIP e,CancellationToken ct=default)=>UpdateAsync(e.Id,e.UserId,e.Name,e.HoldingId,e.Amount,e.Frequency.ToString(),e.DayOfMonth,e.StartDate,e.EndDate,e.SourceAccountId??0,ct);
+    public Task RemoveAsync(SIP e,CancellationToken ct=default)=>DeleteAsync(e.Id,e.UserId,ct);
+    public async Task<PagedResult<SIP>> PagedAsync(PagedQuery q,string schema,string tableName,string whereClause="",object? param=null,CancellationToken ct=default){var all=await QueryAsync("1=1");return new(){Items=all.Skip((q.PageNumber-1)*q.PageSize).Take(q.PageSize).ToList(),TotalCount=all.Count,Page=q.PageNumber,PageSize=q.PageSize};}
+    public async Task<long> CountAsync(string schema,string tableName,string whereClause="",object? param=null,CancellationToken ct=default)=>(await QueryAsync("1=1")).Count;
 }

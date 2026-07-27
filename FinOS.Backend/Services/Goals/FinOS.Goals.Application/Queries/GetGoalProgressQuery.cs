@@ -6,7 +6,7 @@ using MediatR;
 
 namespace FinOS.Goals.Application.Queries;
 
-public record GetGoalProgressQuery(long GoalId) : IRequest<GoalProgressDto>;
+public record GetGoalProgressQuery(long UserId, long GoalId) : IRequest<GoalProgressDto>;
 
 public class GetGoalProgressQueryHandler : IRequestHandler<GetGoalProgressQuery, GoalProgressDto>
 {
@@ -21,6 +21,8 @@ public class GetGoalProgressQueryHandler : IRequestHandler<GetGoalProgressQuery,
     {
         var goal = await _goalRepository.GetWithContributionsAsync(request.GoalId, cancellationToken)
             ?? throw new NotFoundException("Goal", request.GoalId);
+        if (goal.UserId != request.UserId)
+            throw new NotFoundException("Goal", request.GoalId);
 
         var progressPct = goal.TargetAmount > 0
             ? Math.Min(100m, Math.Round(goal.CurrentAmount / goal.TargetAmount * 100, 2))

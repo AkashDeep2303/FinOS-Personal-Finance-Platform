@@ -64,7 +64,7 @@ BEGIN
         TotalPaid               DECIMAL(18,2)                   NOT NULL DEFAULT 0,
         TotalInterestPaid       DECIMAL(18,2)                   NOT NULL DEFAULT 0,
         TotalPrepaid            DECIMAL(18,2)                   NOT NULL DEFAULT 0,
-        NextEMIDate             DATE                            NOT NULL,
+        NextEMIDate             DATE                            NULL,
         Status                  NVARCHAR(20)                    NOT NULL DEFAULT N'Active', -- Active, Closed, Foreclosed
         Currency                NVARCHAR(3)                     NOT NULL DEFAULT N'INR',
         Notes                   NVARCHAR(500)                   NULL,
@@ -83,6 +83,66 @@ BEGIN
 
     CREATE NONCLUSTERED INDEX IX_Loans_NextEMI
         ON Loan.Loans (NextEMIDate, Status) WHERE Status = N'Active' ON FinOS_Index;
+END
+GO
+
+-- Closed and foreclosed loans have no upcoming EMI. Keep existing databases
+-- aligned with the nullable domain/API contract.
+IF EXISTS
+(
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'Loan.Loans')
+      AND name = N'NextEMIDate'
+      AND is_nullable = 0
+)
+BEGIN
+    IF EXISTS
+    (
+        SELECT 1 FROM sys.indexes
+        WHERE object_id = OBJECT_ID(N'Loan.Loans')
+          AND name = N'IX_Loans_NextEMI'
+    )
+        DROP INDEX IX_Loans_NextEMI ON Loan.Loans;
+
+    ALTER TABLE Loan.Loans ALTER COLUMN NextEMIDate DATE NULL;
+END
+GO
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'Loan.Loans')
+      AND name = N'IX_Loans_NextEMI'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_Loans_NextEMI
+        ON Loan.Loans (NextEMIDate, Status) WHERE Status = N'Active' ON FinOS_Index;
+END
+GO
+
+-- ---------------------------------------------------------------------------
+-- Table: LoanInterestRateHistory
+-- ---------------------------------------------------------------------------
+IF OBJECT_ID(N'Loan.LoanInterestRateHistory', N'U') IS NULL
+BEGIN
+    CREATE TABLE Loan.LoanInterestRateHistory
+    (
+        Id              BIGINT IDENTITY(1,1) NOT NULL,
+        LoanId          BIGINT NOT NULL,
+        PreviousRate    DECIMAL(8,4) NOT NULL,
+        NewRate         DECIMAL(8,4) NOT NULL,
+        EffectiveDate   DATE NOT NULL,
+        Reason          NVARCHAR(250) NULL,
+        CreatedAt       DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+
+        CONSTRAINT PK_LoanInterestRateHistory PRIMARY KEY CLUSTERED (Id) ON FinOS_Data,
+        CONSTRAINT FK_LoanInterestRateHistory_Loans FOREIGN KEY (LoanId)
+            REFERENCES Loan.Loans (Id) ON DELETE CASCADE,
+        CONSTRAINT CK_LoanInterestRateHistory_Rates CHECK (PreviousRate >= 0 AND NewRate >= 0)
+    );
+    CREATE NONCLUSTERED INDEX IX_LoanInterestRateHistory_LoanDate
+        ON Loan.LoanInterestRateHistory (LoanId, EffectiveDate DESC) ON FinOS_Index;
 END
 GO
 

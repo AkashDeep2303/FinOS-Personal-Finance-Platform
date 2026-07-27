@@ -20,6 +20,8 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponse>
     private readonly IUserRepository _userRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
+    private readonly ITotpValidator _totpValidator;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     private const int MaxFailedAttempts = 5;
@@ -29,11 +31,15 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponse>
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
+        ITotpValidator totpValidator,
+        IRefreshTokenRepository refreshTokenRepository,
         IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
+        _totpValidator = totpValidator;
+        _refreshTokenRepository = refreshTokenRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -97,9 +103,8 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponse>
                 };
             }
 
-            // TODO: Validate TOTP code against user.TwoFactorSecret
-            // For now, we'll accept any 6-digit code
-            if (request.TwoFactorCode.Length != 6)
+            if (string.IsNullOrWhiteSpace(user.TwoFactorSecret) ||
+                !_totpValidator.Validate(user.TwoFactorSecret, request.TwoFactorCode, DateTime.UtcNow))
             {
                 throw new DomainException("INVALID_2FA_CODE", "Invalid two-factor authentication code.");
             }
@@ -132,8 +137,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponse>
             CreatedAt = DateTime.UtcNow
         };
 
-        user.RefreshTokens.Add(refreshToken);
-        await _unitOfWork.SaveChangesAsync(ct);
+        await _refreshTokenRepository.CreateAsync(refreshToken, command.IpAddress, ct);
 
         return new AuthResponse
         {

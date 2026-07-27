@@ -161,6 +161,9 @@ services:
       - Jwt__Key=CHANGE_ME_JWT_SECRET_MINIMUM_32_CHARACTERS
       - Jwt__Issuer=FinOS
       - Jwt__Audience=FinOS Clients
+      - DocumentStorage__RootPath=/app/private-documents
+    volumes:
+      - financial_documents:/app/private-documents
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -324,3 +327,4 @@ networks:
 volumes:
   sqlserver_data:
   redis_data:
+  financial_documents:

@@ -49,7 +49,7 @@ export const useBudgetsStore = defineStore('budgets', {
       try {
         const userId = currentUserId()
         if (!userId) throw new Error('No authenticated user is available')
-        const response = await budgetsApi.getAll(userId)
+        const response = await budgetsApi.getAll()
         this.budgets = Array.isArray(response.data?.data) ? response.data.data.map(budget => ({ ...budget, category: budget.name, period: budget.periodTypeDisplay, amount: budget.totalBudgetAmount, spent: budget.totalSpentAmount })) : []
       } catch (err) {
         this.error = err.response?.data?.message || err.message || 'Failed to fetch budgets'

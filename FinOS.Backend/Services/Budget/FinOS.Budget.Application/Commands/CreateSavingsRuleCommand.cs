@@ -9,10 +9,12 @@ namespace FinOS.Budget.Application.Commands;
 
 public class CreateSavingsRuleCommand : IRequest<SavingsRuleDto>
 {
+    public long UserId { get; set; }
     public CreateSavingsRuleRequest Request { get; set; }
 
-    public CreateSavingsRuleCommand(CreateSavingsRuleRequest request)
+    public CreateSavingsRuleCommand(long userId, CreateSavingsRuleRequest request)
     {
+        UserId = userId;
         Request = request;
     }
 }
@@ -32,7 +34,7 @@ public class CreateSavingsRuleCommandHandler : IRequestHandler<CreateSavingsRule
 
         var rule = new SavingsRule
         {
-            UserId = req.UserId,
+            UserId = command.UserId,
             RuleType = req.RuleType,
             Name = req.Name,
             TargetAccountId = req.TargetAccountId,

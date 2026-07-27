@@ -91,8 +91,8 @@ public class CategoryRepository : ICategoryRepository
     public async Task<Category> AddAsync(Category entity, CancellationToken ct = default)
     {
         using var connection = _connectionFactory.CreateConnection();
-        var sql = @"INSERT INTO Core.Categories (UserId, ParentId, Name, Icon, Color, Type, SortOrder, IsSystem, BudgetAmount, CreatedAt, UpdatedAt)
-            VALUES (@UserId, @ParentId, @Name, @Icon, @Color, @Type, @SortOrder, @IsSystem, @BudgetAmount, @CreatedAt, @UpdatedAt);
+        var sql = @"INSERT INTO Core.Categories (UserId, ParentId, Name, Icon, Color, Type, SortOrder, IsSystem, BudgetAmount, CashFlowClassification, CreatedAt, UpdatedAt)
+            VALUES (@UserId, @ParentId, @Name, @Icon, @Color, @Type, @SortOrder, @IsSystem, @BudgetAmount, @CashFlowClassification, @CreatedAt, @UpdatedAt);
             SELECT CAST(SCOPE_IDENTITY() AS BIGINT);";
         var id = await connection.ExecuteScalarAsync<long>(sql, entity);
         entity.Id = id;
@@ -101,7 +101,16 @@ public class CategoryRepository : ICategoryRepository
 
     public async Task UpdateAsync(Category entity, CancellationToken ct = default)
     {
-        /* Called within UoW context - use ExecuteAsync directly */
+        const string sql = """
+            UPDATE Core.Categories
+            SET Name = @Name, Icon = @Icon, Color = @Color, BudgetAmount = @BudgetAmount,
+                IsActive = @IsActive, SortOrder = @SortOrder,
+                CashFlowClassification = @CashFlowClassification,
+                UpdatedAt = SYSUTCDATETIME()
+            WHERE Id = @Id AND UserId = @UserId AND IsSystem = 0;
+            """;
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(new CommandDefinition(sql, entity, cancellationToken: ct));
     }
     public Task RemoveAsync(Category entity, CancellationToken ct = default) => Task.CompletedTask;
 }

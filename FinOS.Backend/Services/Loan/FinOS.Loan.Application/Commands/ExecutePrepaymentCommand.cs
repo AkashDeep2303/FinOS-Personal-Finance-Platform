@@ -4,14 +4,16 @@ using FinOS.Loan.Domain.Enums;
 using FinOS.Loan.Domain.Interfaces;
 using FinOS.Loan.Domain.Results;
 using MediatR;
+using FinOS.Loan.Application.Services;
 
 namespace FinOS.Loan.Application.Commands;
 
 public class ExecutePrepaymentCommand : IRequest<LoanPrepaymentDto>
 {
+    public long UserId { get; set; }
     public ExecutePrepaymentRequest Request { get; set; }
 
-    public ExecutePrepaymentCommand(ExecutePrepaymentRequest request) { Request = request; }
+    public ExecutePrepaymentCommand(long userId, ExecutePrepaymentRequest request) { UserId = userId; Request = request; }
 }
 
 public class ExecutePrepaymentCommandHandler : IRequestHandler<ExecutePrepaymentCommand, LoanPrepaymentDto>
@@ -32,8 +34,9 @@ public class ExecutePrepaymentCommandHandler : IRequestHandler<ExecutePrepayment
         var req = command.Request;
 
         // Validate loan exists and allows prepayment
-        var loan = await _loanRepository.GetWithPrepaymentsAsync(req.LoanId, ct)
-            ?? throw new NotFoundException(nameof(Domain.Entities.Loan), req.LoanId);
+        var loan = LoanOwnership.EnsureOwned(
+            await _loanRepository.GetWithPrepaymentsAsync(req.LoanId, ct),
+            req.LoanId, command.UserId);
 
         if (!loan.IsPrepaymentAllowed)
             throw new DomainException("PREPAYMENT_NOT_ALLOWED", "Prepayment is not allowed for this loan.");

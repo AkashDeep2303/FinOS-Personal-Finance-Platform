@@ -1,4 +1,5 @@
 using FinOS.Loan.Application.DTOs;
+using FinOS.Loan.Application.Commands;
 using FluentValidation;
 
 namespace FinOS.Loan.Application.Validators;
@@ -10,12 +11,22 @@ public class CreateLoanRequestValidator : AbstractValidator<CreateLoanRequest>
         RuleFor(x => x.UserId).GreaterThan(0);
         RuleFor(x => x.LoanTypeId).GreaterThan(0);
         RuleFor(x => x.LenderName).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.PrincipalAmount).GreaterThan(0);
-        RuleFor(x => x.InterestRate).GreaterThan(0);
-        RuleFor(x => x.TenureMonths).GreaterThan(0);
+        RuleFor(x => x.PrincipalAmount).GreaterThan(0).LessThanOrEqualTo(9_999_999_999_999_999.99m);
+        RuleFor(x => x.InterestRate).GreaterThan(0).LessThanOrEqualTo(100);
+        RuleFor(x => x.TenureMonths).InclusiveBetween(1, 1200);
         RuleFor(x => x.EMIDayOfMonth).InclusiveBetween(1, 31);
         RuleFor(x => x.StartDate).NotEmpty();
         RuleFor(x => x.Currency).NotEmpty().MaximumLength(3);
+    }
+}
+
+public sealed class CreateLoanCommandValidator : AbstractValidator<CreateLoanCommand>
+{
+    public CreateLoanCommandValidator()
+    {
+        RuleFor(command => command.Request)
+            .NotNull()
+            .SetValidator(new CreateLoanRequestValidator());
     }
 }
 

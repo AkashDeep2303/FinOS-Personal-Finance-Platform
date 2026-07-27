@@ -82,6 +82,57 @@
             </div>
           </form>
         </div>
+
+        <!-- Active Sessions -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div class="flex items-center justify-between gap-4 p-6 border-b border-gray-100">
+            <div>
+              <h2 class="text-lg font-semibold text-gray-900">Active Sessions</h2>
+              <p class="mt-1 text-sm text-gray-500">Review and revoke refresh sessions signed in to your account.</p>
+            </div>
+            <button
+              v-if="otherSessionCount > 0"
+              type="button"
+              :disabled="revokingSessions"
+              @click="revokeOtherSessions"
+              class="shrink-0 px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 text-sm font-medium disabled:opacity-50">
+              Sign out others
+            </button>
+          </div>
+          <div class="p-6">
+            <p v-if="sessionsLoading" class="text-sm text-gray-500">Loading sessions...</p>
+            <p v-else-if="sessionsError" class="text-sm text-red-600">{{ sessionsError }}</p>
+            <p v-else-if="authStore.sessions.length === 0" class="text-sm text-gray-500">
+              No active refresh sessions were found.
+            </p>
+            <ul v-else class="divide-y divide-gray-100">
+              <li
+                v-for="session in authStore.sessions"
+                :key="session.id"
+                class="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <p class="text-sm font-medium text-gray-900">Signed in {{ formatSessionDate(session.createdAt) }}</p>
+                    <span
+                      v-if="session.isCurrent"
+                      class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                      Current
+                    </span>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500">Expires {{ formatSessionDate(session.expiresAt) }}</p>
+                </div>
+                <button
+                  v-if="!session.isCurrent"
+                  type="button"
+                  :disabled="revokingSessionId === session.id"
+                  @click="revokeSession(session.id)"
+                  class="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm disabled:opacity-50">
+                  {{ revokingSessionId === session.id ? 'Signing out...' : 'Sign out' }}
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       <!-- Sidebar Settings -->
@@ -212,7 +263,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 
 const authStore = useAuthStore()
@@ -220,6 +271,11 @@ const saving = ref(false)
 const changingPassword = ref(false)
 const successMessage = ref('')
 const errorMessage = ref('')
+const sessionsLoading = ref(false)
+const sessionsError = ref('')
+const revokingSessionId = ref(null)
+const revokingSessions = ref(false)
+const otherSessionCount = computed(() => authStore.sessions.filter((session) => !session.isCurrent).length)
 
 const profile = reactive({
   name: '',
@@ -318,8 +374,54 @@ function populateProfile() {
   })
 }
 
+function formatSessionDate(value) {
+  if (!value) return '—'
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(new Date(value))
+}
+
+async function loadSessions() {
+  sessionsLoading.value = true
+  sessionsError.value = ''
+  try {
+    await authStore.fetchSessions()
+  } catch {
+    sessionsError.value = 'Active sessions could not be loaded.'
+  } finally {
+    sessionsLoading.value = false
+  }
+}
+
+async function revokeSession(sessionId) {
+  revokingSessionId.value = sessionId
+  sessionsError.value = ''
+  try {
+    await authStore.revokeSession(sessionId)
+    successMessage.value = 'Session signed out successfully.'
+  } catch {
+    sessionsError.value = 'The session could not be signed out.'
+  } finally {
+    revokingSessionId.value = null
+  }
+}
+
+async function revokeOtherSessions() {
+  revokingSessions.value = true
+  sessionsError.value = ''
+  try {
+    await authStore.revokeOtherSessions()
+    successMessage.value = 'All other sessions were signed out.'
+  } catch {
+    sessionsError.value = 'Other sessions could not be signed out.'
+  } finally {
+    revokingSessions.value = false
+  }
+}
+
 onMounted(async () => {
-  await authStore.fetchProfile()
+  await Promise.all([authStore.fetchProfile(), loadSessions()])
   populateProfile()
 })
 </script>

@@ -10,30 +10,30 @@ namespace FinOS.Analytics.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class SpendingController : ControllerBase
+public class SpendingController : AuthenticatedControllerBase
 {
     private readonly IMediator _mediator;
 
     public SpendingController(IMediator mediator) => _mediator = mediator;
 
     [HttpGet("trends")]
-    public async Task<ActionResult<ApiResponse<List<SpendingTrendDto>>>> GetTrends([FromQuery] long userId, [FromQuery] int months = 6)
+    public async Task<ActionResult<ApiResponse<List<SpendingTrendDto>>>> GetTrends([FromQuery] int months = 6)
     {
-        var result = await _mediator.Send(new GetSpendingTrendsQuery(userId, months));
+        var result = await _mediator.Send(new GetSpendingTrendsQuery(AuthenticatedUserId, months));
         return Ok(ApiResponse<List<SpendingTrendDto>>.Ok(result));
     }
 
     [HttpGet("income-vs-expense")]
-    public async Task<ActionResult<ApiResponse<List<IncomeVsExpenseDto>>>> GetIncomeVsExpense([FromQuery] long userId, [FromQuery] int months = 12)
+    public async Task<ActionResult<ApiResponse<List<IncomeVsExpenseDto>>>> GetIncomeVsExpense([FromQuery] int months = 12)
     {
-        var result = await _mediator.Send(new GetIncomeVsExpenseTrendQuery(userId, months));
+        var result = await _mediator.Send(new GetIncomeVsExpenseTrendQuery(AuthenticatedUserId, months));
         return Ok(ApiResponse<List<IncomeVsExpenseDto>>.Ok(result));
     }
 
     [HttpGet("category-breakdown")]
-    public async Task<ActionResult<ApiResponse<List<CategoryBreakdownDto>>>> GetCategoryBreakdown([FromQuery] long userId, [FromQuery] int yearMonth)
+    public async Task<ActionResult<ApiResponse<List<CategoryBreakdownDto>>>> GetCategoryBreakdown([FromQuery] int yearMonth)
     {
-        var result = await _mediator.Send(new GetCategoryWiseBreakdownQuery(userId, yearMonth));
+        var result = await _mediator.Send(new GetCategoryWiseBreakdownQuery(AuthenticatedUserId, yearMonth));
         return Ok(ApiResponse<List<CategoryBreakdownDto>>.Ok(result));
     }
 }

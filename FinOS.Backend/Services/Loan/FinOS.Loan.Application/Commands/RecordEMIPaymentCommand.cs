@@ -3,14 +3,16 @@ using FinOS.Loan.Application.DTOs;
 using FinOS.Loan.Domain.Interfaces;
 using FinOS.Loan.Domain.Results;
 using MediatR;
+using FinOS.Loan.Application.Services;
 
 namespace FinOS.Loan.Application.Commands;
 
 public class RecordEMIPaymentCommand : IRequest<EMIScheduleDto>
 {
+    public long UserId { get; set; }
     public RecordEMIPaymentRequest Request { get; set; }
 
-    public RecordEMIPaymentCommand(RecordEMIPaymentRequest request) { Request = request; }
+    public RecordEMIPaymentCommand(long userId, RecordEMIPaymentRequest request) { UserId = userId; Request = request; }
 }
 
 public class RecordEMIPaymentCommandHandler : IRequestHandler<RecordEMIPaymentCommand, EMIScheduleDto>
@@ -29,6 +31,8 @@ public class RecordEMIPaymentCommandHandler : IRequestHandler<RecordEMIPaymentCo
     public async Task<EMIScheduleDto> Handle(RecordEMIPaymentCommand command, CancellationToken ct)
     {
         var req = command.Request;
+        await LoanOwnership.GetOwnedAsync(
+            _loanRepository, req.LoanId, command.UserId, ct);
 
         // SP handles everything atomically: marks EMI paid, updates loan totals, debits account
         var result = await _emiScheduleRepository.RecordEMIPaymentAsync(

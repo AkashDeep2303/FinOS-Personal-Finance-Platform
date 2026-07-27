@@ -27,7 +27,14 @@
             <option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }} (INR {{ (account.balance || 0).toLocaleString('en-IN') }})</option>
           </select>
         </div>
-        <div>
+        <div v-if="form.type === 'Transfer'">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Transfer To</label>
+          <select v-model.number="form.transferAccountId" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm bg-white">
+            <option value="">Select Destination Account</option>
+            <option v-for="account in destinationAccounts" :key="account.id" :value="account.id">{{ account.name }} (INR {{ (account.balance || 0).toLocaleString('en-IN') }})</option>
+          </select>
+        </div>
+        <div v-if="form.type !== 'Transfer'">
           <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
           <select v-model.number="form.categoryId" required class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm bg-white">
             <option value="">Select Category</option>
@@ -63,17 +70,18 @@ const accounts = accountsStore.accounts
 const saving = ref(false)
 const categories = ref([])
 const form = reactive({
-  type: 'Expense', amount: 0, accountId: '', categoryId: '',
+  type: 'Expense', amount: 0, accountId: '', transferAccountId: '', categoryId: '',
   date: new Date().toISOString().slice(0, 10), description: ''
 })
 const categoriesForType = computed(() => categories.value.filter(category => category.type === form.type && category.isActive))
+const destinationAccounts = computed(() => accounts.filter(account => account.id !== form.accountId))
 
 onMounted(async () => {
   try { categories.value = (await transactionsApi.getCategories()).data?.data ?? [] } catch { categories.value = [] }
   if (props.transaction) {
     Object.assign(form, {
       type: props.transaction.type || 'Expense', amount: props.transaction.amount || 0,
-      accountId: props.transaction.accountId || '', categoryId: props.transaction.categoryId || '',
+      accountId: props.transaction.accountId || '', transferAccountId: props.transaction.transferAccountId || '', categoryId: props.transaction.categoryId || '',
       date: (props.transaction.transactionDate || props.transaction.date) ? new Date(props.transaction.transactionDate || props.transaction.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
       description: props.transaction.description || ''
     })
@@ -82,6 +90,11 @@ onMounted(async () => {
 
 async function handleSubmit() {
   saving.value = true
-  try { emit('save', { ...form }) } finally { saving.value = false }
+  try {
+    const payload = { ...form }
+    if (payload.type !== 'Transfer') payload.transferAccountId = null
+    if (payload.type === 'Transfer') payload.categoryId = null
+    emit('save', payload)
+  } finally { saving.value = false }
 }
 </script>

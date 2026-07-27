@@ -9,7 +9,7 @@
     </div>
 
     <!-- Loan Summary -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <p class="text-sm text-gray-500 mb-1">Total Outstanding</p>
         <p class="text-2xl font-bold text-red-600">{{ formatCurrency(loansStore.totalOutstanding) }}</p>
@@ -22,7 +22,27 @@
         <p class="text-sm text-gray-500 mb-1">Active Loans</p>
         <p class="text-2xl font-bold text-gray-900">{{ loansStore.activeLoans.length }}</p>
       </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <p class="text-sm text-gray-500 mb-1">Debt-to-Income</p>
+        <p class="text-2xl font-bold text-gray-900">{{ loansStore.debtOverview?.debtToIncomeRatioPct ?? 0 }}%</p>
+        <p class="text-xs text-gray-500">{{ loansStore.debtOverview?.riskCategory || 'Not available' }}</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <p class="text-sm text-gray-500 mb-1">Weighted Interest</p>
+        <p class="text-2xl font-bold text-gray-900">{{ loansStore.debtOverview?.weightedInterestRate ?? 0 }}%</p>
+        <p class="text-xs text-gray-500">Debt-free {{ formatDate(loansStore.debtOverview?.debtFreeDate) }}</p>
+      </div>
     </div>
+
+    <FinancialMetricExplanation
+      title="Understand debt-to-income"
+      description="The share of recorded gross monthly income committed to recurring debt payments."
+      :value="`${loansStore.debtOverview?.debtToIncomeRatioPct ?? 0}%`"
+      :changed="`Monthly EMI commitment is ${formatCurrency(loansStore.debtOverview?.totalMonthlyEmi || 0)}.`"
+      calculation="Total recurring monthly EMI divided by recorded monthly income, multiplied by 100."
+      why-it-matters="A rising ratio reduces flexibility for savings, emergencies, and new obligations."
+      improvement="Prioritize expensive debt, avoid adding obligations without sufficient surplus, and compare prepayment scenarios."
+    />
 
     <!-- Loan List -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -81,8 +101,8 @@
             class="flex-1 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-medium transition-colors">&#128197; EMI Schedule</button>
           <button @click="openPrepaymentCalc(loan)"
             class="flex-1 px-3 py-2 border border-primary-300 text-primary-700 rounded-lg hover:bg-primary-50 text-xs font-medium transition-colors">&#129518; Prepayment Calc</button>
-          <button @click="deleteLoan(loan.id)"
-            class="px-3 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 text-xs font-medium transition-colors">&#128465;</button>
+          <button title="Close loan" @click="closeLoan(loan.id)"
+            class="px-3 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 text-xs font-medium transition-colors">Close</button>
         </div>
       </div>
     </div>
@@ -95,6 +115,35 @@
           <button @click="showEMIModal = false" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <div class="overflow-auto max-h-[60vh]">
+          <div v-if="loansStore.paymentAnalysis" class="grid grid-cols-2 gap-3 p-4 md:grid-cols-4">
+            <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Principal paid</p><b>{{ formatCurrency(loansStore.paymentAnalysis.principalPaid) }}</b></div>
+            <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Interest paid</p><b>{{ formatCurrency(loansStore.paymentAnalysis.interestPaid) }}</b></div>
+            <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Remaining interest</p><b>{{ formatCurrency(loansStore.paymentAnalysis.remainingInterest) }}</b></div>
+            <div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Late payments</p><b>{{ loansStore.paymentAnalysis.latePayments }}</b></div>
+          </div>
+          <div class="border-y border-gray-100 p-4">
+            <div class="flex items-center justify-between"><h3 class="font-semibold">Interest rate history</h3><button class="text-sm font-medium text-primary-700" @click="showRateForm=!showRateForm">Record change</button></div>
+            <form v-if="showRateForm" class="mt-3 grid gap-2 sm:grid-cols-4" @submit.prevent="saveRateChange">
+              <input v-model.number="rateForm.newRate" required min="0" max="100" step=".01" type="number" placeholder="New rate %" class="rounded-lg border-gray-300 text-sm">
+              <input v-model="rateForm.effectiveDate" required type="date" class="rounded-lg border-gray-300 text-sm">
+              <input v-model="rateForm.reason" maxlength="250" placeholder="Reason" class="rounded-lg border-gray-300 text-sm">
+              <button class="rounded-lg bg-primary-600 px-3 py-2 text-sm text-white">Save</button>
+            </form>
+            <div v-if="loansStore.rateHistory.length" class="mt-3 space-y-1 text-sm text-gray-600"><p v-for="rate in loansStore.rateHistory" :key="rate.id">{{ formatDate(rate.effectiveDate) }}: {{ rate.previousRate }}% → {{ rate.newRate }}% <span v-if="rate.reason">· {{ rate.reason }}</span></p></div>
+            <p v-else class="mt-2 text-sm text-gray-500">No rate changes recorded.</p>
+          </div>
+          <div class="border-b border-gray-100 p-4">
+            <h3 class="font-semibold">Prepayment history</h3>
+            <div v-if="loansStore.prepaymentHistory.length" class="mt-3 space-y-2">
+              <div v-for="payment in loansStore.prepaymentHistory" :key="payment.id" class="grid grid-cols-2 gap-2 rounded-lg bg-gray-50 p-3 text-sm md:grid-cols-4">
+                <div><p class="text-xs text-gray-500">Date</p><b>{{ formatDate(payment.prepaymentDate) }}</b></div>
+                <div><p class="text-xs text-gray-500">Amount</p><b>{{ formatCurrency(payment.prepaymentAmount) }}</b></div>
+                <div><p class="text-xs text-gray-500">Interest saved</p><b class="text-green-700">{{ formatCurrency(payment.interestSaved) }}</b></div>
+                <div><p class="text-xs text-gray-500">Tenure reduced</p><b>{{ payment.tenureReduction || 0 }} months</b></div>
+              </div>
+            </div>
+            <p v-else class="mt-2 text-sm text-gray-500">No executed prepayments recorded.</p>
+          </div>
           <table class="w-full">
             <thead class="bg-gray-50 sticky top-0">
               <tr>
@@ -185,6 +234,7 @@
           </div>
         </div>
         <form @submit.prevent="saveLoan" class="p-6 space-y-4">
+          <p v-if="loanError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ loanError }}</p>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Loan Name</label>
             <input v-model="loanForm.name" type="text" required
@@ -220,19 +270,19 @@
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Principal (&#8377;)</label>
-              <input v-model.number="loanForm.principalAmount" type="number" step="0.01" required
+              <input v-model.number="loanForm.principalAmount" type="number" min="0.01" step="0.01" required
                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm" />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Interest Rate (%)</label>
-              <input v-model.number="loanForm.interestRate" type="number" step="0.01" required
+              <input v-model.number="loanForm.interestRate" type="number" min="0.01" step="0.01" required
                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm" />
             </div>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Tenure (months)</label>
-              <input v-model.number="loanForm.tenureMonths" type="number" required
+              <input v-model.number="loanForm.tenureMonths" type="number" min="1" required
                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm" />
             </div>
             <div>
@@ -260,6 +310,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { format } from 'date-fns'
 import { useLoansStore } from '../stores/loans'
 import { useAccountsStore } from '../stores/accounts'
+import FinancialMetricExplanation from '../components/FinancialMetricExplanation.vue'
 
 const loansStore = useLoansStore()
 const accountsStore = useAccountsStore()
@@ -271,9 +322,12 @@ const showEMIModal = ref(false)
 const showPrepaymentModal = ref(false)
 const selectedLoan = ref(null)
 const emiSchedule = ref([])
+const showRateForm = ref(false)
+const rateForm = reactive({ newRate: 0, effectiveDate: new Date().toISOString().slice(0, 10), reason: '' })
 const prepaymentResult = ref(null)
 const calculating = ref(false)
 const saving = ref(false)
+const loanError = ref(null)
 
 const loanForm = reactive({
   name: '', type: 'Home Loan', lender: '', accountId: null, principalAmount: 0,
@@ -316,12 +370,17 @@ function getRepaymentPercentage(loan) {
 async function viewEMISchedule(loan) {
   selectedLoan.value = loan
   try {
-    const schedule = await loansStore.fetchEMISchedule(loan.id)
+    const [schedule] = await Promise.all([loansStore.fetchEMISchedule(loan.id), loansStore.fetchLoanAnalysis(loan.id)])
     emiSchedule.value = schedule || []
   } catch (err) {
     emiSchedule.value = []
   }
   showEMIModal.value = true
+}
+
+async function saveRateChange() {
+  await loansStore.addRateChange(selectedLoan.value.id, { ...rateForm })
+  showRateForm.value = false
 }
 
 function openPrepaymentCalc(loan) {
@@ -345,24 +404,30 @@ async function calculatePrepayment() {
 
 async function saveLoan() {
   saving.value = true
+  loanError.value = null
   try {
     await loansStore.createLoan({ ...loanForm })
     showAddModal.value = false
     Object.assign(loanForm, { name: '', type: 'Home Loan', lender: '', accountId: null, principalAmount: 0, interestRate: 0, tenureMonths: 0, startDate: new Date().toISOString().slice(0, 10) })
   } catch (err) {
+    const response = err.response?.data
+    const validationErrors = response?.errors
+    loanError.value = response?.message ||
+      (validationErrors ? Object.values(validationErrors).flat()[0] : null) ||
+      'Failed to save loan. Please verify the linked account and loan details.'
     console.error('Failed to save loan:', err)
   } finally {
     saving.value = false
   }
 }
 
-async function deleteLoan(id) {
-  if (confirm('Delete this loan?')) {
-    await loansStore.deleteLoan(id)
+async function closeLoan(id) {
+  if (confirm('Close this loan? This records the loan as closed; it does not delete its history.')) {
+    await loansStore.closeLoan(id)
   }
 }
 
 onMounted(() => {
-  loansStore.fetchLoans()
+  Promise.allSettled([loansStore.fetchLoans(), loansStore.fetchDebtOverview()])
 })
 </script>

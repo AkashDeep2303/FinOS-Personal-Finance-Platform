@@ -7,7 +7,7 @@ public class SIP : IAuditableEntity
 {
     public long Id { get; set; }
     public long UserId { get; set; }
-    public long HoldingId { get; set; }
+    public long? HoldingId { get; set; }
     public string Name { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public SIPFrequency Frequency { get; set; }
@@ -20,13 +20,9 @@ public class SIP : IAuditableEntity
     public bool IsActive { get; set; } = true;
     public decimal TotalInvested { get; set; }
     public int InstallmentsDone { get; set; }
-
-    // Audit
     public DateTime CreatedAt { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public DateTime? UpdatedAt { get; set; }
     public string? UpdatedBy { get; set; }
-
-    // Navigation
-    public Holding Holding { get; set; } = null!;
+    public Holding? Holding { get; set; }
 }

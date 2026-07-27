@@ -121,12 +121,106 @@ public class RefreshTokenRepository : IRefreshTokenRepository
             new { UserId = userId, RevokedAt = now, ReplacedByToken = replacedByToken });
     }
 
+    public async Task<IReadOnlyList<RefreshToken>> GetActiveByUserIdAsync(
+        long userId, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        var tokens = await connection.QueryAsync<RefreshToken>(new CommandDefinition(
+            """
+            SELECT Id, UserId, JwtId, IsRevoked, IsUsed, ExpiresAt, CreatedAt, RevokedAt
+            FROM Security.RefreshTokens
+            WHERE UserId = @UserId
+              AND IsRevoked = 0
+              AND IsUsed = 0
+              AND ExpiresAt > SYSUTCDATETIME()
+            ORDER BY CreatedAt DESC;
+            """,
+            new { UserId = userId }, cancellationToken: ct));
+        return tokens.AsList();
+    }
+
+    public async Task RevokeByIdAsync(
+        long userId, long tokenId, string? revokedByIp, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE Security.RefreshTokens
+            SET IsRevoked = 1,
+                RevokedAt = SYSUTCDATETIME(),
+                RevokedByIp = @RevokedByIp
+            WHERE Id = @TokenId
+              AND UserId = @UserId
+              AND IsRevoked = 0;
+            """,
+            new { UserId = userId, TokenId = tokenId, RevokedByIp = revokedByIp },
+            cancellationToken: ct));
+    }
+
+    public async Task RevokeAllExceptJwtIdAsync(
+        long userId, string currentJwtId, string? revokedByIp, CancellationToken ct = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE Security.RefreshTokens
+            SET IsRevoked = 1,
+                RevokedAt = SYSUTCDATETIME(),
+                RevokedByIp = @RevokedByIp
+            WHERE UserId = @UserId
+              AND JwtId <> @CurrentJwtId
+              AND IsRevoked = 0
+              AND IsUsed = 0;
+            """,
+            new { UserId = userId, CurrentJwtId = currentJwtId, RevokedByIp = revokedByIp },
+            cancellationToken: ct));
+    }
+
     public async Task MarkAsUsedAsync(long tokenId, string? replacedByToken, CancellationToken ct = default)
     {
         using var connection = _connectionFactory.CreateConnection();
         await connection.ExecuteAsync(
             "UPDATE Security.RefreshTokens SET IsUsed = 1, ReplacedByToken = @ReplacedByToken WHERE Id = @Id",
             new { Id = tokenId, ReplacedByToken = replacedByToken });
+    }
+
+    public async Task<RefreshToken> RotateAsync(
+        long existingTokenId, RefreshToken replacement, string? ipAddress, CancellationToken ct = default)
+    {
+        using var connection = await _connectionFactory.CreateOpenConnectionAsync();
+        using var transaction = await connection.BeginTransactionAsync(ct);
+        try
+        {
+            var affected = await connection.ExecuteAsync(new CommandDefinition(
+                """
+                UPDATE Security.RefreshTokens
+                SET IsUsed = 1, ReplacedByToken = @ReplacementToken
+                WHERE Id = @ExistingTokenId AND IsUsed = 0 AND IsRevoked = 0;
+                """,
+                new { ExistingTokenId = existingTokenId, ReplacementToken = replacement.Token },
+                transaction, cancellationToken: ct));
+            if (affected != 1)
+                throw new InvalidOperationException("Refresh token is no longer active.");
+
+            var parameters = new DynamicParameters();
+            parameters.Add("@UserId", replacement.UserId, DbType.Int64);
+            parameters.Add("@Token", replacement.Token, DbType.String, size: 256);
+            parameters.Add("@JwtId", replacement.JwtId, DbType.String, size: 100);
+            parameters.Add("@ExpiresAt", replacement.ExpiresAt, DbType.DateTime2);
+            parameters.Add("@IpAddress", ipAddress, DbType.String, size: 50);
+            parameters.Add("@NewTokenId", dbType: DbType.Int64, direction: ParameterDirection.Output);
+            await connection.ExecuteAsync(new CommandDefinition(
+                "Security.sp_CreateRefreshToken", parameters, transaction,
+                commandType: CommandType.StoredProcedure, cancellationToken: ct));
+            replacement.Id = parameters.Get<long>("@NewTokenId");
+            await transaction.CommitAsync(ct);
+            return replacement;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(ct);
+            throw;
+        }
     }
 
     public async Task<int> CleanExpiredTokensAsync(int olderThanDays, CancellationToken ct = default)
